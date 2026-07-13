@@ -3,7 +3,7 @@ set -euo pipefail
 
 REMOTE_HOST="${REMOTE_HOST:-jennifer.huang@192.168.1.33}"
 SSH_KEY="${SSH_KEY:-/Users/jennifer.huang/.ssh/id_rsa}"
-REMOTE_DIR="${REMOTE_DIR:-/Users/jennifer.huang/harbor_market}"
+REMOTE_DIR="${REMOTE_DIR:-/Users/jennifer.huang/jennifer/harbor_market}"
 REPOSITORY="${REPOSITORY:-git@github.com:jenniferhuang/harbor_market.git}"
 BRANCH="${BRANCH:-main}"
 

@@ -52,7 +52,16 @@ start_docker_engine() {
 
   local colima_bin
   if colima_bin="$(find_colima)"; then
-    "$colima_bin" start --cpu 4 --memory 6 --disk 40
+    if [[ -f "$HOME/.colima/default/colima.yaml" ]]; then
+      "$colima_bin" start
+    else
+      "$colima_bin" start \
+        --cpu 4 \
+        --memory 6 \
+        --disk 60 \
+        --vm-type vz \
+        --mount-type virtiofs
+    fi
     wait_for_docker "$docker_bin" 60
     return
   fi
