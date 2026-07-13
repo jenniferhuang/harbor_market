@@ -3,14 +3,20 @@ FROM python:3.12.9-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=10
 
 WORKDIR /app
 
 RUN groupadd --system app && useradd --system --gid app --home-dir /app app
 
 COPY requirements.lock ./requirements.lock
-RUN python -m pip install --require-hashes --no-deps -r requirements.lock
+RUN --mount=type=cache,id=harbor-market-pip,target=/root/.cache/pip,sharing=locked \
+    for attempt in 1 2 3; do \
+        python -m pip install --require-hashes --no-deps -r requirements.lock && exit 0; \
+        if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+        sleep 5; \
+    done
 
 COPY alembic.ini ./alembic.ini
 COPY alembic ./alembic
