@@ -1,0 +1,12 @@
+{
+  "id": "approval_1783956091627_0d4k63huq",
+  "title": "Approve Cloudflare Tunnel ingress design revision",
+  "filePath": ".spec-workflow/specs/xiangyue-xiamen-auth-scaffold/design.md",
+  "type": "document",
+  "status": "approved",
+  "createdAt": "2026-07-13T15:21:31.627Z",
+  "category": "spec",
+  "categoryName": "xiangyue-xiamen-auth-scaffold",
+  "response": "Approved after deployment audit; Cloudflare Tunnel preserves existing Xray.",
+  "respondedAt": "2026-07-13T15:21:38.009Z"
+}

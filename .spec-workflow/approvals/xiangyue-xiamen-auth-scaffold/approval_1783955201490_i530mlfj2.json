@@ -1,0 +1,12 @@
+{
+  "id": "approval_1783955201490_i530mlfj2",
+  "title": "Approve Xiangyue Xiamen technical design",
+  "filePath": ".spec-workflow/specs/xiangyue-xiamen-auth-scaffold/design.md",
+  "type": "document",
+  "status": "approved",
+  "createdAt": "2026-07-13T15:06:41.490Z",
+  "category": "spec",
+  "categoryName": "xiangyue-xiamen-auth-scaffold",
+  "response": "Approved for implementation under the user-authorized end-to-end delivery.",
+  "respondedAt": "2026-07-13T15:06:46.561Z"
+}

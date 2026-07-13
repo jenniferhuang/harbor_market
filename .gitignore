@@ -1,0 +1,30 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Runtime and test artifacts
+backups/
+output/
+playwright-report/
+test-results/
+*.log
+
+# Editors
+.idea/
+.vscode/

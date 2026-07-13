@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/specs/xiangyue-xiamen-auth-scaffold/tasks.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2026-07-13T15:06:52.823Z",
+      "trigger": "initial",
+      "approvalId": "approval_1783955212812_h3cjm5y2h",
+      "approvalTitle": "Approve Xiangyue Xiamen implementation tasks"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2026-07-13T15:06:59.586Z",
+      "trigger": "approved",
+      "approvalId": "approval_1783955212812_h3cjm5y2h",
+      "approvalTitle": "Approve Xiangyue Xiamen implementation tasks"
+    }
+  ]
+}
