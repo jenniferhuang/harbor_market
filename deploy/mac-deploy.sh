@@ -32,6 +32,8 @@ fi
 chmod 600 "$env_file"
 
 compose "$docker_bin" --env-file "$env_file" config --quiet
-compose "$docker_bin" --env-file "$env_file" up --build --detach --remove-orphans
+compose "$docker_bin" --env-file "$env_file" build backend
+compose "$docker_bin" --env-file "$env_file" build frontend
+compose "$docker_bin" --env-file "$env_file" up --detach --no-build --remove-orphans
 
 exec /bin/bash "$deploy_dir/verify.sh"
