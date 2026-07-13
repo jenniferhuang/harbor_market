@@ -17,10 +17,14 @@ cat >"$plist" <<PLIST
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>$project_dir/deploy/mac-start.sh</string>
+    <string>$project_dir/deploy/mac-watch.sh</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
   <key>StandardOutPath</key>
   <string>$log_dir/stack.out.log</string>
   <key>StandardErrorPath</key>

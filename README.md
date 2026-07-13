@@ -28,6 +28,13 @@ Production deployment binds the application to Mac loopback only. Public HTTPS i
 
 Until custom DNS write access is available, `deploy/install-quick-tunnel.sh` publishes a temporary `https://*.trycloudflare.com` URL through an outbound-only, launchd-supervised connector. It does not use or modify the existing Lightsail Xray ports, hostname, or configuration.
 
+The current temporary URL is recorded in the tunnel log:
+
+```bash
+grep -Eo 'https://[-a-z0-9]+\.trycloudflare\.com' \
+  ~/Library/Logs/HarborMarket/quick-tunnel.err.log | tail -1
+```
+
 ## Operations
 
 ```bash
@@ -39,7 +46,19 @@ docker compose down
 
 # Rebuild after pulling a new revision
 docker compose up --build -d
+
+# Verify the public registration and authentication flow
+tests/e2e/auth-smoke.sh https://your-public-hostname
 ```
+
+`deploy/install-launch-agent.sh` installs a launchd monitor that starts native
+Colima and reconciles the Compose stack at login. It also checks application
+health every 60 seconds and recovers the engine or web services when needed.
+Compose restart policies supervise the individual containers, while the
+Cloudflare connector has its own KeepAlive LaunchAgent.
+
+The Mac must remain powered, awake, network-connected, and lid-open unless it
+is operating in supported closed-display mode.
 
 Do not run `docker compose down -v` on a deployment containing data. The `-v` option deletes the PostgreSQL volume.
 
