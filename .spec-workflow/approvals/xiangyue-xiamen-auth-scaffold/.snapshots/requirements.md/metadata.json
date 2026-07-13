@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/specs/xiangyue-xiamen-auth-scaffold/requirements.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2026-07-13T14:57:26.485Z",
+      "trigger": "initial",
+      "approvalId": "approval_1783954646478_r2d0m2oxd",
+      "approvalTitle": "Approve Xiangyue Xiamen authentication scaffold requirements"
+    }
+  ]
+}
