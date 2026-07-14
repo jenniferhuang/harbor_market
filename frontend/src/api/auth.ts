@@ -3,6 +3,8 @@ import { ApiError, apiClient } from './client'
 export interface User {
   id?: string | number
   username: string
+  isAdmin?: boolean
+  is_admin?: boolean
   isActive?: boolean
   createdAt?: string
   lastLoginAt?: string | null
@@ -56,6 +58,12 @@ function parseUser(payload: unknown): User {
 
   const isActive = candidate.is_active ?? candidate.isActive
   if (typeof isActive === 'boolean') user.isActive = isActive
+
+  const isAdmin = candidate.is_admin ?? candidate.isAdmin
+  if (typeof isAdmin === 'boolean') {
+    user.isAdmin = isAdmin
+    user.is_admin = isAdmin
+  }
 
   const createdAt = candidate.created_at ?? candidate.createdAt
   if (typeof createdAt === 'string') user.createdAt = createdAt

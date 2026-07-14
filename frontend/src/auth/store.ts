@@ -74,6 +74,9 @@ export function createAuthStore(api: AuthApi = authApi) {
     get isAuthenticated() {
       return state.status === 'authenticated' && state.user !== null
     },
+    get isAdmin() {
+      return state.user?.isAdmin ?? state.user?.is_admin ?? false
+    },
     restore,
     login,
     register,

@@ -20,8 +20,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "no-referrer")
-        if request.url.path.startswith("/api/v1/auth"):
-            response.headers.setdefault("Cache-Control", "no-store")
+        if request.url.path.startswith(("/api/v1/auth", "/api/v1/admin")):
+            response.headers["Cache-Control"] = "private, no-store"
         if self.enable_hsts:
             response.headers.setdefault(
                 "Strict-Transport-Security",

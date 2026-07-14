@@ -2,11 +2,19 @@
 set -u
 
 deploy_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The watchdog must always contend as an independent lock owner. In
+# particular, do not inherit a deploy/restore token if it was started from an
+# operator shell that currently owns maintenance mode.
+unset HARBOR_MARKET_OPERATION_LOCK_TOKEN
 # shellcheck source=mac-common.sh
 source "$deploy_dir/mac-common.sh"
 
 docker_bin="$(find_docker)"
-env_file="$project_dir/.env"
+env_file="${ENV_FILE:-$project_dir/.env}"
+if [[ ! -r "$env_file" ]]; then
+  printf 'Missing deployment environment file: %s\n' "$env_file" >&2
+  exit 1
+fi
 check_interval="${HARBOR_MARKET_CHECK_INTERVAL_SECONDS:-60}"
 app_port="$(sed -n 's/^APP_PORT=//p' "$env_file" | tail -1)"
 app_port="${app_port:-8080}"
@@ -27,7 +35,26 @@ start_stack() {
     up --detach --remove-orphans --no-build >/dev/null
 }
 
+watcher_finish() {
+  local status="$?"
+  trap - EXIT INT TERM
+  if ! operation_lock_release; then
+    status=1
+  fi
+  exit "$status"
+}
+trap watcher_finish EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 while true; do
+  if ! operation_lock_try_acquire watchdog-reconcile; then
+    printf '%s Maintenance operation active; skipping reconciliation (%s).\n' \
+      "$(date -u +%FT%TZ)" "$(operation_lock_describe)"
+    sleep "$check_interval"
+    continue
+  fi
+
   if ! "$docker_bin" info >/dev/null 2>&1; then
     printf '%s Docker engine unavailable; starting Colima and the stack.\n' \
       "$(date -u +%FT%TZ)"
@@ -46,6 +73,12 @@ while true; do
           restart backend frontend >/dev/null || true
       fi
     fi
+  fi
+
+  if ! operation_lock_release; then
+    printf '%s Watchdog could not safely release its operation lock.\n' \
+      "$(date -u +%FT%TZ)" >&2
+    exit 1
   fi
 
   sleep "$check_interval"

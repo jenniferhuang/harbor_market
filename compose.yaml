@@ -1,5 +1,23 @@
 name: ${COMPOSE_PROJECT_NAME:-harbor-market}
 
+x-backend-environment: &backend-environment
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-harbor_market}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-xiangyue_xiamen}
+  AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:?AUTH_SECRET_KEY is required}
+  AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-harbor_market_session}
+  AUTH_COOKIE_PATH: ${AUTH_COOKIE_PATH:-/api/v1}
+  AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+  AUTH_SESSION_TTL_SECONDS: ${AUTH_SESSION_TTL_SECONDS:-28800}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+  TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-true}
+  STORAGE_BACKEND: ${STORAGE_BACKEND:-minio}
+  STORAGE_ENDPOINT: minio:9000
+  STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}
+  STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}
+  STORAGE_BUCKET: ${STORAGE_BUCKET:-harbor-market-products}
+  STORAGE_SECURE: "false"
+  UPLOAD_MAX_BYTES: ${UPLOAD_MAX_BYTES:-5242880}
+
 services:
   db:
     image: postgres:16-alpine
@@ -21,20 +39,88 @@ services:
     networks:
       - private
 
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+    volumes:
+      - ${MINIO_DATA_DIR:-./.data/minio}:/data
+    ports:
+      - 127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl --fail --silent http://127.0.0.1:9000/minio/health/live >/dev/null || exit 1
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks:
+      - private
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z@sha256:aead63c77f9db9107f1696fb08ecb0faeda23729cde94b0f663edf4fe09728e3
+    restart: "no"
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        mc alias set harbor http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" >/dev/null
+        mc mb --ignore-existing "harbor/$${STORAGE_BUCKET}"
+        mc anonymous set none "harbor/$${STORAGE_BUCKET}"
+        printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket","s3:ListBucketMultipartUploads"],"Resource":["arn:aws:s3:::%s"]},{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],"Resource":["arn:aws:s3:::%s/*"]}]}' "$${STORAGE_BUCKET}" "$${STORAGE_BUCKET}" >/tmp/harbor-market-policy.json
+        mc admin policy create harbor harbor-market-product-rw /tmp/harbor-market-policy.json
+        mc admin user add harbor "$${STORAGE_ACCESS_KEY}" "$${STORAGE_SECRET_KEY}"
+        mc admin policy attach harbor harbor-market-product-rw --user "$${STORAGE_ACCESS_KEY}"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY is required}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY is required}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-harbor-market-products}
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - private
+
+  minio-client:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z@sha256:aead63c77f9db9107f1696fb08ecb0faeda23729cde94b0f663edf4fe09728e3
+    profiles:
+      - tools
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?MINIO_ROOT_USER is required}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-harbor-market-products}
+    volumes:
+      - ${OBJECT_TRANSFER_DIR:-./backups/object-transfer}:/transfer
+    depends_on:
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - private
+
   backend:
+    image: ${BACKEND_IMAGE:-harbor-market-backend:local}
     build:
       context: ./backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-harbor_market}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-xiangyue_xiamen}
-      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:?AUTH_SECRET_KEY is required}
-      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-harbor_market_session}
-      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
-      AUTH_SESSION_TTL_SECONDS: ${AUTH_SESSION_TTL_SECONDS:-28800}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      <<: *backend-environment
     depends_on:
       db:
         condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     healthcheck:
       test:
         - CMD
@@ -45,6 +131,80 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+    networks:
+      - private
+
+  cleanup-worker:
+    image: ${BACKEND_IMAGE:-harbor-market-backend:local}
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c 'import os,time; p="/tmp/harbor-market-cleanup-worker-heartbeat";
+          i=int(os.environ.get("OBJECT_CLEANUP_INTERVAL_SECONDS","60"));
+          assert os.path.isfile(p) and time.time()-os.path.getmtime(p) <= max(120,i*3)'
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    command:
+      - sh
+      - -ec
+      - |
+        interval="$${OBJECT_CLEANUP_INTERVAL_SECONDS:-60}"
+        case "$${interval}" in
+          ''|*[!0-9]*) printf 'Invalid cleanup interval: %s\n' "$${interval}" >&2; exit 2 ;;
+        esac
+        if [ "$${interval}" -lt 10 ] || [ "$${interval}" -gt 3600 ]; then
+          printf 'Cleanup interval must be between 10 and 3600 seconds.\n' >&2
+          exit 2
+        fi
+        stop_requested=false
+        child_pid=
+        consecutive_failures=0
+        heartbeat=/tmp/harbor-market-cleanup-worker-heartbeat
+        request_stop() {
+          stop_requested=true
+          if [ -n "$${child_pid}" ]; then
+            kill -TERM "$${child_pid}" 2>/dev/null || true
+          fi
+        }
+        trap request_stop TERM INT
+        while [ "$${stop_requested}" = false ]; do
+          python -m app.cli retry-object-cleanup --limit 100 &
+          child_pid=$$!
+          if wait "$${child_pid}"; then
+            child_status=0
+          else
+            child_status=$$?
+          fi
+          child_pid=
+          if [ "$${stop_requested}" = true ]; then
+            break
+          fi
+          if [ "$${child_status}" -eq 0 ]; then
+            consecutive_failures=0
+            date +%s >"$${heartbeat}"
+          else
+            consecutive_failures=$$((consecutive_failures + 1))
+            printf 'Cleanup pass failed (%s consecutive failure(s)).\n' \
+              "$${consecutive_failures}" >&2
+            if [ "$${consecutive_failures}" -ge 5 ]; then
+              exit 1
+            fi
+          fi
+          sleep "$${interval}" &
+          child_pid=$$!
+          wait "$${child_pid}" || true
+          child_pid=
+        done
+    environment:
+      <<: *backend-environment
+      OBJECT_CLEANUP_INTERVAL_SECONDS: ${OBJECT_CLEANUP_INTERVAL_SECONDS:-60}
+    depends_on:
+      backend:
+        condition: service_healthy
     networks:
       - private
 

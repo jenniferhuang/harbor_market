@@ -8,6 +8,7 @@ import { authStore } from '../auth/store'
 
 export interface AuthGate {
   readonly isAuthenticated: boolean
+  readonly isAdmin: boolean
   restore(force?: boolean): Promise<void>
 }
 
@@ -17,6 +18,12 @@ const routes: RouteRecordRaw[] = [
     name: 'home',
     component: () => import('../views/HomeView.vue'),
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/admin/products',
+    name: 'admin-products',
+    component: () => import('../views/ProductsAdminView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
   },
   {
     path: '/login',
@@ -43,7 +50,7 @@ export function createAppRouter(
   const router = createRouter({ history, routes })
 
   router.beforeEach(async (to) => {
-    if (to.meta.requiresAuth || to.meta.guestOnly) await auth.restore()
+    if (to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.guestOnly) await auth.restore()
 
     if (to.meta.requiresAuth && !auth.isAuthenticated) {
       return {
@@ -51,6 +58,8 @@ export function createAppRouter(
         query: { redirect: to.fullPath },
       }
     }
+
+    if (to.meta.requiresAdmin && !auth.isAdmin) return { name: 'home' }
 
     if (to.meta.guestOnly && auth.isAuthenticated) return { name: 'home' }
     return true

@@ -47,6 +47,7 @@ class UserPublic(BaseModel):
 
     id: int
     username: str
+    is_admin: bool
     created_at: datetime
     last_login_at: datetime | None
 
@@ -66,6 +67,7 @@ class MessageResponse(BaseModel):
 class HealthData(BaseModel):
     status: Literal["ok"]
     database: Literal["ok"]
+    storage: Literal["ok", "disabled"]
 
 
 class HealthResponse(BaseModel):

@@ -13,19 +13,31 @@ from app.core.security import PasswordManager, SessionCookieManager
 from app.db.session import build_engine, build_session_factory
 from app.middleware import SecurityHeadersMiddleware
 from app.services.auth import AuthService
+from app.services.object_storage import ObjectStorage, build_object_storage
 
 
-def create_app(settings: Settings | None = None, *, engine: Engine | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    engine: Engine | None = None,
+    object_storage: ObjectStorage | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     database_engine = engine or build_engine(settings)
 
     app = FastAPI(
         title=settings.app_name,
-        version="1.0.0",
-        description="Harbor Market registration and signed-cookie authentication API.",
+        version="2.0.0",
+        description=(
+            "Harbor Market authentication, product administration, public catalog, "
+            "media, and Excel import/export API."
+        ),
     )
     app.state.settings = settings
     app.state.engine = database_engine
+    app.state.object_storage = (
+        object_storage if object_storage is not None else build_object_storage(settings)
+    )
     app.state.session_factory = build_session_factory(database_engine)
     app.state.cookies = SessionCookieManager(settings)
     app.state.auth_service = AuthService(PasswordManager(settings))
@@ -34,7 +46,15 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
         settings.registration_rate_window_seconds,
         max_keys=settings.rate_limit_max_keys,
     )
-    app.state.login_limiter = SlidingWindowRateLimiter(
+    # Enforce both dimensions independently. The client-wide limiter prevents
+    # username rotation from turning Argon2 into a public CPU/memory DoS, while
+    # the account-wide limiter prevents distributed credential spraying.
+    app.state.login_client_limiter = SlidingWindowRateLimiter(
+        settings.login_failure_rate_limit,
+        settings.login_failure_rate_window_seconds,
+        max_keys=settings.rate_limit_max_keys,
+    )
+    app.state.login_account_limiter = SlidingWindowRateLimiter(
         settings.login_failure_rate_limit,
         settings.login_failure_rate_window_seconds,
         max_keys=settings.rate_limit_max_keys,
@@ -45,8 +65,8 @@ def create_app(settings: Settings | None = None, *, engine: Engine | None = None
             CORSMiddleware,
             allow_origins=settings.parsed_cors_origins,
             allow_credentials=True,
-            allow_methods=["GET", "POST", "OPTIONS"],
-            allow_headers=["Content-Type"],
+            allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Content-Type", "X-Idempotency-Key"],
         )
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.parsed_allowed_hosts)
     app.add_middleware(

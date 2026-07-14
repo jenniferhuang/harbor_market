@@ -11,6 +11,19 @@ from sqlalchemy import select
 from app.models import User
 
 
+def test_all_auth_endpoints_are_private_and_not_cacheable(client: TestClient) -> None:
+    credentials = {"username": "cache-user", "password": "correct horse battery staple"}
+    responses = [
+        client.post("/api/v1/auth/register", json=credentials),
+        client.post("/api/v1/auth/login", json=credentials),
+        client.get("/api/v1/auth/me"),
+        client.post("/api/v1/auth/logout"),
+    ]
+
+    assert [response.status_code for response in responses] == [201, 200, 200, 200]
+    assert {response.headers["cache-control"] for response in responses} == {"private, no-store"}
+
+
 def test_register_creates_user_with_argon2_hash(
     client: TestClient,
     app: FastAPI,
@@ -205,6 +218,186 @@ def test_failed_login_rate_limit_returns_retry_after(client: TestClient) -> None
     assert limited.status_code == 429
     assert limited.json()["error"]["code"] == "rate_limit_exceeded"
     assert int(limited.headers["retry-after"]) >= 1
+
+
+def test_successful_login_does_not_clear_other_failures_from_same_client(
+    client: TestClient,
+    registered_user: dict[str, str],
+) -> None:
+    wrong = {"username": "unknown", "password": "wrong password"}
+
+    assert client.post("/api/v1/auth/login", json=wrong).status_code == 401
+    assert client.post("/api/v1/auth/login", json=registered_user).status_code == 200
+    assert client.post("/api/v1/auth/login", json=wrong).status_code == 401
+
+    limited = client.post("/api/v1/auth/login", json=wrong)
+    assert limited.status_code == 429
+
+
+def test_successful_login_does_not_clear_account_failures_across_clients(
+    client: TestClient,
+    app: FastAPI,
+    registered_user: dict[str, str],
+) -> None:
+    app.state.settings.trust_proxy_headers = True
+    wrong = {**registered_user, "password": "wrong password"}
+
+    assert (
+        client.post(
+            "/api/v1/auth/login",
+            json=wrong,
+            headers={"X-Real-IP": "198.51.100.20"},
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/api/v1/auth/login",
+            json=registered_user,
+            headers={"X-Real-IP": "198.51.100.21"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/v1/auth/login",
+            json=wrong,
+            headers={"X-Real-IP": "198.51.100.22"},
+        ).status_code
+        == 401
+    )
+    limited = client.post(
+        "/api/v1/auth/login",
+        json=wrong,
+        headers={"X-Real-IP": "198.51.100.23"},
+    )
+    assert limited.status_code == 429
+
+
+def test_concurrent_failure_that_fills_limit_returns_429(
+    client: TestClient,
+    app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app.state.login_client_limiter, "check", lambda _key: None)
+    monkeypatch.setattr(app.state.login_account_limiter, "check", lambda _key: None)
+    monkeypatch.setattr(app.state.login_client_limiter, "consume", lambda _key: 17)
+    monkeypatch.setattr(app.state.login_account_limiter, "consume", lambda _key: None)
+
+    limited = client.post(
+        "/api/v1/auth/login",
+        json={"username": "unknown", "password": "wrong password"},
+    )
+
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"] == "17"
+
+
+def test_untrusted_real_ip_header_cannot_bypass_login_rate_limit(
+    client: TestClient,
+) -> None:
+    credentials = {"username": "unknown", "password": "wrong password"}
+
+    assert (
+        client.post(
+            "/api/v1/auth/login",
+            json=credentials,
+            headers={"X-Real-IP": "198.51.100.10"},
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/api/v1/auth/login",
+            json=credentials,
+            headers={"X-Real-IP": "198.51.100.11"},
+        ).status_code
+        == 401
+    )
+
+    limited = client.post(
+        "/api/v1/auth/login",
+        json=credentials,
+        headers={"X-Real-IP": "198.51.100.12"},
+    )
+    assert limited.status_code == 429
+
+
+def test_rotating_usernames_cannot_bypass_client_login_rate_limit(
+    client: TestClient,
+) -> None:
+    for username in ("rotated-user-one", "rotated-user-two"):
+        response = client.post(
+            "/api/v1/auth/login",
+            json={"username": username, "password": "wrong password"},
+        )
+        assert response.status_code == 401
+
+    limited = client.post(
+        "/api/v1/auth/login",
+        json={"username": "rotated-user-three", "password": "wrong password"},
+    )
+    assert limited.status_code == 429
+
+
+def test_trusted_validated_real_ip_enforces_account_wide_login_rate_limit(
+    client: TestClient,
+    app: FastAPI,
+) -> None:
+    app.state.settings.trust_proxy_headers = True
+    credentials = {"username": "unknown", "password": "wrong password"}
+
+    for address in ("198.51.100.10", "198.51.100.11"):
+        assert (
+            client.post(
+                "/api/v1/auth/login",
+                json=credentials,
+                headers={"X-Real-IP": address},
+            ).status_code
+            == 401
+        )
+    assert (
+        client.post(
+            "/api/v1/auth/login",
+            json=credentials,
+            headers={"X-Real-IP": "198.51.100.12"},
+        ).status_code
+        == 429
+    )
+
+    # A different account from a fresh client still has an independent account
+    # bucket, while each client retains its own independent client bucket.
+    other_client = client.post(
+        "/api/v1/auth/login",
+        json={"username": "another-unknown", "password": "wrong password"},
+        headers={"X-Real-IP": "198.51.100.13"},
+    )
+    assert other_client.status_code == 401
+
+
+def test_invalid_trusted_real_ip_falls_back_to_direct_client(
+    client: TestClient,
+    app: FastAPI,
+) -> None:
+    app.state.settings.trust_proxy_headers = True
+    credentials = {"username": "unknown", "password": "wrong password"}
+
+    for header in ("not-an-ip", "198.51.100.1, 198.51.100.2"):
+        assert (
+            client.post(
+                "/api/v1/auth/login",
+                json=credentials,
+                headers={"X-Real-IP": header},
+            ).status_code
+            == 401
+        )
+
+    limited = client.post(
+        "/api/v1/auth/login",
+        json=credentials,
+        headers={"X-Real-IP": "still-not-an-ip"},
+    )
+    assert limited.status_code == 429
 
 
 def test_registration_rate_limit_is_enforced(client: TestClient, app: FastAPI) -> None:

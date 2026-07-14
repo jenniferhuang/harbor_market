@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from typing import Literal, Self
 
@@ -28,7 +29,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AUTH_SECRET_KEY", "AUTH_SECRET"),
     )
     auth_cookie_name: str = "harbor_market_session"
-    auth_cookie_path: str = "/api/v1/auth"
+    auth_cookie_path: str = "/api/v1"
     auth_cookie_domain: str | None = None
     auth_cookie_secure: bool = True
     auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
@@ -48,6 +49,15 @@ class Settings(BaseSettings):
 
     cors_allowed_origins: str = ""
     allowed_hosts: str = "localhost,127.0.0.1"
+    trust_proxy_headers: bool = False
+
+    storage_backend: Literal["disabled", "minio"] = "disabled"
+    storage_endpoint: str = "minio:9000"
+    storage_access_key: SecretStr | None = None
+    storage_secret_key: SecretStr | None = None
+    storage_bucket: str = "harbor-market-products"
+    storage_secure: bool = False
+    upload_max_bytes: int = Field(default=5 * 1024 * 1024, ge=1, le=5 * 1024 * 1024)
 
     @property
     def parsed_cors_origins(self) -> list[str]:
@@ -59,6 +69,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_security_settings(self) -> Self:
+        self.storage_endpoint = self.storage_endpoint.strip()
+        self.storage_bucket = self.storage_bucket.strip()
         if (
             self.auth_token_ttl_minutes is not None
             and "auth_session_ttl_seconds" not in self.model_fields_set
@@ -68,7 +80,31 @@ class Settings(BaseSettings):
             raise ValueError("SameSite=None requires a secure cookie")
         if not self.parsed_allowed_hosts:
             raise ValueError("ALLOWED_HOSTS must contain at least one hostname")
+        if self.storage_backend == "minio":
+            if not self.storage_endpoint.strip():
+                raise ValueError("STORAGE_ENDPOINT is required when STORAGE_BACKEND=minio")
+            if "://" in self.storage_endpoint:
+                raise ValueError("STORAGE_ENDPOINT must be host:port without an URL scheme")
+            if self.storage_access_key is None or not self.storage_access_key.get_secret_value():
+                raise ValueError("STORAGE_ACCESS_KEY is required when STORAGE_BACKEND=minio")
+            if self.storage_secret_key is None or not self.storage_secret_key.get_secret_value():
+                raise ValueError("STORAGE_SECRET_KEY is required when STORAGE_BACKEND=minio")
+            if len(self.storage_access_key.get_secret_value()) < 3:
+                raise ValueError("STORAGE_ACCESS_KEY must contain at least 3 characters")
+            if len(self.storage_secret_key.get_secret_value()) < 8:
+                raise ValueError("STORAGE_SECRET_KEY must contain at least 8 characters")
+            if not re.fullmatch(
+                r"(?=.{3,63}\Z)(?!.*\.\.)(?!\d+\.\d+\.\d+\.\d+\Z)"
+                r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+                r"(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*",
+                self.storage_bucket,
+            ):
+                raise ValueError("STORAGE_BUCKET must be a valid DNS-style S3 bucket name")
         if self.environment == "production":
+            if _looks_like_placeholder(self.auth_secret_key.get_secret_value()):
+                raise ValueError("production AUTH_SECRET_KEY must not be a placeholder")
+            if _looks_like_placeholder(self.database_url.get_secret_value()):
+                raise ValueError("production DATABASE_URL must not contain placeholder credentials")
             if not self.auth_cookie_secure:
                 raise ValueError("production requires AUTH_COOKIE_SECURE=true")
             if self.argon2_time_cost < 2 or self.argon2_memory_cost_kib < 19_456:
@@ -77,9 +113,20 @@ class Settings(BaseSettings):
                 raise ValueError("production CORS origins must be explicit")
             if "*" in self.parsed_allowed_hosts:
                 raise ValueError("production allowed hosts must be explicit")
+            if self.storage_backend == "minio":
+                assert self.storage_access_key is not None
+                assert self.storage_secret_key is not None
+                if _looks_like_placeholder(self.storage_access_key.get_secret_value()):
+                    raise ValueError("production STORAGE_ACCESS_KEY must not be a placeholder")
+                if _looks_like_placeholder(self.storage_secret_key.get_secret_value()):
+                    raise ValueError("production STORAGE_SECRET_KEY must not be a placeholder")
         return self
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
+
+
+def _looks_like_placeholder(value: str) -> bool:
+    return "replace-with-" in value.strip().casefold()

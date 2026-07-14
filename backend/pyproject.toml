@@ -8,8 +8,12 @@ dependencies = [
     "argon2-cffi==25.1.0",
     "fastapi==0.116.1",
     "itsdangerous==2.2.0",
+    "minio==7.2.20",
+    "openpyxl==3.1.5",
+    "pillow==12.3.0",
     "psycopg[binary]==3.2.9",
     "pydantic-settings==2.10.1",
+    "python-multipart==0.0.32",
     "sqlalchemy==2.0.41",
     "uvicorn[standard]==0.35.0",
 ]

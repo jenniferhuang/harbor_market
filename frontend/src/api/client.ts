@@ -1,4 +1,5 @@
 export type ApiFieldErrors = Record<string, string>
+export const AUTH_REQUIRED_EVENT = 'harbor-market:auth-required'
 
 interface ValidationIssue {
   loc?: Array<string | number>
@@ -115,26 +116,56 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
+function notifyExpiredSession(path: `/api/${string}`, status: number): void {
+  if (status !== 401 || path.startsWith('/api/v1/auth/')) return
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT))
+}
+
+function requestHeaders(init: RequestInit): Headers {
+  const headers = new Headers(init.headers)
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json')
+
+  const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData
+  if (init.body && !isFormData && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  return headers
+}
+
 export class ApiClient {
-  async request<T>(path: `/api/${string}`, init: RequestInit = {}): Promise<T> {
+  private async fetch(path: `/api/${string}`, init: RequestInit): Promise<Response> {
     let response: Response
 
     try {
       response = await fetch(path, {
         ...init,
         credentials: 'include',
-        headers: {
-          Accept: 'application/json',
-          ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-          ...init.headers,
-        },
+        headers: requestHeaders(init),
       })
     } catch {
       throw new ApiError(0, safeErrorMessage(0))
     }
 
+    return response
+  }
+
+  private async throwResponseError(response: Response): Promise<never> {
+    const payload = await readJson(response)
+    throw new ApiError(
+      response.status,
+      extractSafeMessage(payload, response.status) ?? safeErrorMessage(response.status),
+      extractFieldErrors(payload),
+      extractErrorCode(payload),
+    )
+  }
+
+  async request<T>(path: `/api/${string}`, init: RequestInit = {}): Promise<T> {
+    const response = await this.fetch(path, init)
+
     const payload = await readJson(response)
     if (!response.ok) {
+      notifyExpiredSession(path, response.status)
       throw new ApiError(
         response.status,
         extractSafeMessage(payload, response.status) ?? safeErrorMessage(response.status),
@@ -155,6 +186,30 @@ export class ApiClient {
       method: 'POST',
       body: body === undefined ? undefined : JSON.stringify(body),
     })
+  }
+
+  patch<T>(path: `/api/${string}`, body?: unknown): Promise<T> {
+    return this.request<T>(path, {
+      method: 'PATCH',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  }
+
+  delete<T>(path: `/api/${string}`): Promise<T> {
+    return this.request<T>(path, { method: 'DELETE' })
+  }
+
+  postForm<T>(path: `/api/${string}`, body: FormData, headers?: HeadersInit): Promise<T> {
+    return this.request<T>(path, { method: 'POST', body, headers })
+  }
+
+  async getBlob(path: `/api/${string}`): Promise<Blob> {
+    const response = await this.fetch(path, { method: 'GET' })
+    if (!response.ok) {
+      notifyExpiredSession(path, response.status)
+      return this.throwResponseError(response)
+    }
+    return response.blob()
   }
 }
 

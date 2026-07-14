@@ -19,8 +19,10 @@ dist/
 coverage/
 
 # Runtime and test artifacts
+.data/
 backups/
 output/
+outputs/
 playwright-report/
 test-results/
 *.log

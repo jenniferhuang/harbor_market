@@ -59,4 +59,13 @@ describe('auth store', () => {
     expect(store.isAuthenticated).toBe(false)
     expect(store.user).toBeNull()
   })
+
+  it('exposes administrator status from the current user', async () => {
+    const administrator: User = { id: 8, username: 'catalog-admin', is_admin: true }
+    const store = createAuthStore(createApi({ me: vi.fn(async () => administrator) }))
+
+    await store.restore()
+
+    expect(store.isAdmin).toBe(true)
+  })
 })

@@ -9,8 +9,8 @@ from app.api.dependencies import (
     CurrentUser,
     DbSession,
     client_key,
-    enforce_login_rate_limit,
     enforce_registration_rate_limit,
+    rate_limit_error,
 )
 from app.core.errors import ApiError
 from app.schemas.auth import (
@@ -55,7 +55,6 @@ def register(
     "/login",
     response_model=UserResponse,
     responses=AUTH_ERROR_RESPONSES,
-    dependencies=[Depends(enforce_login_rate_limit)],
 )
 def login(
     payload: LoginRequest,
@@ -64,17 +63,35 @@ def login(
     session: DbSession,
     auth_service: AuthServiceDependency,
 ) -> UserResponse:
-    key = client_key(request)
+    client = client_key(request)
+    account = payload.username
+    retry_after_values = (
+        request.app.state.login_client_limiter.check(client),
+        request.app.state.login_account_limiter.check(account),
+    )
+    retry_after = max((value for value in retry_after_values if value is not None), default=None)
+    if retry_after is not None:
+        raise rate_limit_error(retry_after)
     user = auth_service.authenticate(
         session,
         payload.username,
         payload.password.get_secret_value(),
     )
     if user is None:
-        request.app.state.login_limiter.consume(key)
+        retry_after_values = (
+            request.app.state.login_client_limiter.consume(client),
+            request.app.state.login_account_limiter.consume(account),
+        )
+        retry_after = max(
+            (value for value in retry_after_values if value is not None),
+            default=None,
+        )
+        if retry_after is not None:
+            raise rate_limit_error(retry_after)
         raise ApiError(401, "invalid_credentials", "Invalid username or password")
 
-    request.app.state.login_limiter.reset(key)
+    # A successful login does not erase either failure dimension. Entries
+    # expire with their bounded sliding windows instead.
     cookies = request.app.state.cookies
     response.set_cookie(
         key=cookies.cookie_name,

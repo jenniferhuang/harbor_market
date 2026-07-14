@@ -3,7 +3,13 @@ FROM node:22.14.0-alpine3.21 AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,id=harbor-market-npm,target=/root/.npm,sharing=locked \
+    for attempt in 1 2 3; do \
+        npm ci --no-audit --no-fund && exit 0; \
+        if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+        rm -rf node_modules; \
+        sleep 5; \
+    done
 
 COPY . .
 RUN npm run build
