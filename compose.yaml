@@ -114,6 +114,12 @@ services:
     restart: unless-stopped
     environment:
       <<: *backend-environment
+      PAYMENT_MODE: ${PAYMENT_MODE:-disabled}
+      PAYMENT_MOCK_CONTROLS_ENABLED: ${PAYMENT_MOCK_CONTROLS_ENABLED:-false}
+      PAYMENT_MOCK_SIGNING_SECRET: ${PAYMENT_MOCK_SIGNING_SECRET:-}
+      PAYMENT_MOCK_APP_ID: ${PAYMENT_MOCK_APP_ID:-wx0000000000000000}
+      PAYMENT_PREPAY_TTL_SECONDS: ${PAYMENT_PREPAY_TTL_SECONDS:-7200}
+      PAYMENT_WEBHOOK_MAX_BYTES: ${PAYMENT_WEBHOOK_MAX_BYTES:-1310720}
     depends_on:
       db:
         condition: service_healthy

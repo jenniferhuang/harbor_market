@@ -59,6 +59,19 @@ class Settings(BaseSettings):
     storage_secure: bool = False
     upload_max_bytes: int = Field(default=5 * 1024 * 1024, ge=1, le=5 * 1024 * 1024)
 
+    payment_mode: Literal["disabled", "mock"] = "disabled"
+    payment_mock_controls_enabled: bool = False
+    payment_mock_signing_secret: SecretStr | None = None
+    payment_mock_app_id: str = "wx0000000000000000"
+    payment_prepay_ttl_seconds: int = Field(default=2 * 60 * 60, ge=60, le=2 * 60 * 60)
+    # WeChat permits ciphertext alone to reach 1 MiB; reserve bounded room for
+    # the surrounding notification envelope while keeping memory use capped.
+    payment_webhook_max_bytes: int = Field(
+        default=1_280 * 1_024,
+        ge=1_024,
+        le=1_280 * 1_024,
+    )
+
     @property
     def parsed_cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
@@ -100,6 +113,21 @@ class Settings(BaseSettings):
                 self.storage_bucket,
             ):
                 raise ValueError("STORAGE_BUCKET must be a valid DNS-style S3 bucket name")
+        if self.payment_mock_controls_enabled and self.payment_mode != "mock":
+            raise ValueError("PAYMENT_MOCK_CONTROLS_ENABLED requires PAYMENT_MODE=mock")
+        if self.payment_mode == "mock":
+            if self.environment == "production":
+                raise ValueError("mock payments cannot be enabled in production")
+            if (
+                self.payment_mock_signing_secret is None
+                or len(self.payment_mock_signing_secret.get_secret_value()) < 32
+            ):
+                raise ValueError(
+                    "PAYMENT_MOCK_SIGNING_SECRET must contain at least 32 characters "
+                    "when PAYMENT_MODE=mock"
+                )
+            if not re.fullmatch(r"wx[A-Za-z0-9]{16}", self.payment_mock_app_id):
+                raise ValueError("PAYMENT_MOCK_APP_ID must look like a WeChat Mini Program AppID")
         if self.environment == "production":
             if _looks_like_placeholder(self.auth_secret_key.get_secret_value()):
                 raise ValueError("production AUTH_SECRET_KEY must not be a placeholder")

@@ -236,7 +236,9 @@ def _truncate_application_tables(engine: Engine) -> None:
     with engine.begin() as connection:
         connection.execute(
             sa.text(
-                "TRUNCATE TABLE object_cleanup_jobs, import_jobs, product_images, "
+                "TRUNCATE TABLE payment_provider_events, payment_state_events, "
+                "payment_mock_provider_records, payment_attempts, object_cleanup_jobs, "
+                "import_jobs, product_images, "
                 "product_skus, products, categories, users RESTART IDENTITY CASCADE"
             )
         )

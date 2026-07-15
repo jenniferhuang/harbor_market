@@ -42,6 +42,42 @@ For local HTTP development, also set `ENVIRONMENT=development` and
 `AUTH_COOKIE_SECURE=false`. Production defaults to a secure cookie and rejects an explicit
 insecure-cookie configuration.
 
+Payment integration defaults to `PAYMENT_MODE=disabled`. A local-only mock can be enabled with:
+
+- `ENVIRONMENT=development` (or `test`)
+- `PAYMENT_MODE=mock`
+- `PAYMENT_MOCK_CONTROLS_ENABLED=true`
+- `PAYMENT_MOCK_SIGNING_SECRET`: an uncommitted random value of at least 32 characters
+
+Settings reject mock mode in production. The mock admin API accepts a server/operator supplied
+amount only to exercise the boundary before the order module exists; no customer-facing
+payment-creation route accepts an amount. `POST /api/v1/admin/payments` requires an
+`X-Idempotency-Key`. Provider state can be queried, closed, or simulated through guarded admin
+routes. The scenario control accepts only `NOTPAY`, `SUCCESS`, and `CLOSED`; `PAYERROR` is not an
+injectable mock state.
+
+Mock-provider records are stored in PostgreSQL rather than process memory, so prepay and trade
+state survive application restarts and are consistent across workers. A partial unique index allows
+only one active (`created` or `pending`) attempt per order reference. There is intentionally no
+single-success constraint: all provider-confirmed successes are retained, and multiple successes
+set operational-review flags on the related attempts.
+
+`/api/v1/payments/providers/wechat-pay/notify` is unauthenticated by design and accepts only a valid,
+recent provider signature. Its callback body limit is 1.25 MiB
+(`PAYMENT_WEBHOOK_MAX_BYTES=1310720`), leaving bounded envelope room around WeChat's maximum 1 MiB
+ciphertext field.
+Each valid decoded callback, including an unmatched merchant order, is retained in the provider
+inbox as a normalized envelope: provider AppID and merchant ID, merchant order and provider state,
+transaction ID and success time, and amount/currency. The inbox stores the raw-body SHA-256 rather
+than raw plaintext, making later replay and investigation possible without retaining the callback
+body. The mock uses HMAC solely for tests; real WeChat Pay will use RSA response/callback
+verification and AES-GCM notification decryption behind the same gateway interface.
+
+Before a live adapter can be enabled, payment orchestration must follow a claim/network/re-lock
+sequence: persist and commit a short operation claim, perform the WeChat network request with no
+payment or order row locks held, then re-lock, revalidate current state, and apply the response.
+Holding DB locks across live provider calls is explicitly prohibited.
+
 ```bash
 uv sync --locked
 uv run alembic upgrade head

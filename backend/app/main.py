@@ -12,6 +12,8 @@ from app.core.rate_limit import SlidingWindowRateLimiter
 from app.core.security import PasswordManager, SessionCookieManager
 from app.db.session import build_engine, build_session_factory
 from app.middleware import SecurityHeadersMiddleware
+from app.payments.providers.base import PaymentGateway
+from app.payments.providers.factory import build_payment_gateway
 from app.services.auth import AuthService
 from app.services.object_storage import ObjectStorage, build_object_storage
 
@@ -21,16 +23,17 @@ def create_app(
     *,
     engine: Engine | None = None,
     object_storage: ObjectStorage | None = None,
+    payment_gateway: PaymentGateway | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     database_engine = engine or build_engine(settings)
 
     app = FastAPI(
         title=settings.app_name,
-        version="2.0.0",
+        version="2.1.0",
         description=(
             "Harbor Market authentication, product administration, public catalog, "
-            "media, and Excel import/export API."
+            "media, Excel import/export, and mock-first payment API."
         ),
     )
     app.state.settings = settings
@@ -41,6 +44,10 @@ def create_app(
     app.state.session_factory = build_session_factory(database_engine)
     app.state.cookies = SessionCookieManager(settings)
     app.state.auth_service = AuthService(PasswordManager(settings))
+    app.state.payment_gateway = payment_gateway or build_payment_gateway(
+        settings,
+        app.state.session_factory,
+    )
     app.state.registration_limiter = SlidingWindowRateLimiter(
         settings.registration_rate_limit,
         settings.registration_rate_window_seconds,

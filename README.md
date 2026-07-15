@@ -71,6 +71,46 @@ grep -Eo 'https://[-a-z0-9]+\.trycloudflare\.com' \
   ~/Library/Logs/HarborMarket/quick-tunnel.err.log | tail -1
 ```
 
+## Mock-first payments
+
+The backend contains a provider-neutral payment-attempt module and a development-only WeChat Pay
+mock. Production remains `PAYMENT_MODE=disabled`; configuration rejects mock mode when
+`ENVIRONMENT=production`. The mock control API is administrator-only and is intentionally not a
+customer checkout API: a later order service must calculate and persist the amount before calling
+the payment service.
+
+For isolated local development, add these values to an uncommitted `.env`:
+
+```bash
+ENVIRONMENT=development
+PAYMENT_MODE=mock
+PAYMENT_MOCK_CONTROLS_ENABLED=true
+PAYMENT_MOCK_SIGNING_SECRET=replace-with-output-from-openssl-rand-hex-32
+```
+
+The module persists payment attempts, append-only transition history, a deduplicated provider event
+inbox, and mock-provider transaction state in PostgreSQL. The inbox retains the normalized callback
+envelope, including valid callbacks that do not match a local attempt, plus a raw-body hash without
+storing raw plaintext. This supports later replay and investigation. Pending mock transactions
+survive backend restarts and can be shared safely by multiple backend workers. The guarded scenario
+control can set `NOTPAY`, `SUCCESS`, or `CLOSED`; it deliberately does not inject `PAYERROR`.
+
+The database permits only one active (`created` or `pending`) attempt per order reference. It does
+not impose a one-success constraint: if provider truth reveals more than one successful attempt,
+every success is retained and the related attempts are flagged for operational review. The mock
+also exercises prepay refresh, provider query, close, signed success callbacks, missing or duplicate
+callbacks, amount validation, and close-versus-payment races. Callback bodies are capped at 1.25
+MiB, leaving bounded JSON-envelope room around WeChat's maximum 1 MiB ciphertext field.
+Mock client parameters are marked `MOCK-HMAC-SHA256` and cannot be submitted to
+`wx.requestPayment`.
+
+Live WeChat Pay, customer checkout, WeChat `openid` binding, order/inventory transitions, and
+refunds are separate follow-up modules. Enabling a live adapter has an additional architecture gate:
+persist and commit a short claim, perform the provider network call without holding payment/order DB
+locks, then re-lock, revalidate, and apply the result. Live network calls must never run while those
+rows remain locked. The state table and boundary are documented under
+`.spec-workflow/specs/wechat-payments-mock/`.
+
 ## Operations
 
 ```bash
@@ -118,4 +158,5 @@ Do not delete the PostgreSQL volume or the MinIO data directory on a deployment 
 
 Product-center requirements, design, and implementation tasks are in
 `.spec-workflow/specs/harbor-product-management/`; the original authentication scaffold remains in
-`.spec-workflow/specs/xiangyue-xiamen-auth-scaffold/`.
+`.spec-workflow/specs/xiangyue-xiamen-auth-scaffold/`. The mock-first payment specification is in
+`.spec-workflow/specs/wechat-payments-mock/`.

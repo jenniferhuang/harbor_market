@@ -177,6 +177,9 @@ def settings() -> Settings:
         registration_rate_limit=10,
         login_failure_rate_limit=2,
         rate_limit_max_keys=100,
+        payment_mode="mock",
+        payment_mock_controls_enabled=True,
+        payment_mock_signing_secret="test-only-mock-payment-signing-secret-32-bytes",
     )
 
 

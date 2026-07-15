@@ -61,6 +61,10 @@ def test_initial_migration_and_case_insensitive_uniqueness() -> None:
         "product_images",
         "import_jobs",
         "object_cleanup_jobs",
+        "payment_attempts",
+        "payment_state_events",
+        "payment_provider_events",
+        "payment_mock_provider_records",
     } <= set(inspector.get_table_names())
     assert {column["name"] for column in inspector.get_columns("categories")} >= {
         "code",
@@ -108,6 +112,50 @@ def test_initial_migration_and_case_insensitive_uniqueness() -> None:
         "summary",
         "errors",
     }
+    assert {column["name"] for column in inspector.get_columns("payment_attempts")} >= {
+        "public_id",
+        "owner_user_id",
+        "order_reference",
+        "merchant_order_no",
+        "status",
+        "amount_cents",
+        "currency",
+        "request_hash",
+        "prepay_id",
+        "provider_transaction_id",
+        "review_required",
+        "review_reason",
+        "version",
+    }
+    assert {
+        "ix_payment_attempts_order_created",
+        "ix_payment_attempts_status_updated",
+        "uq_payment_attempts_one_active_order",
+    } <= {index["name"] for index in inspector.get_indexes("payment_attempts")}
+    assert {column["name"] for column in inspector.get_columns("payment_provider_events")} >= {
+        "provider_event_id",
+        "provider_app_id",
+        "provider_merchant_id",
+        "merchant_order_no",
+        "provider_state_raw",
+        "provider_transaction_id",
+        "provider_success_time",
+        "amount_cents",
+        "currency",
+        "payment_attempt_id",
+        "payload_sha256",
+        "signature_verified",
+        "processing_status",
+        "error_status_code",
+    }
+    assert {
+        "merchant_order_no",
+        "request_fingerprint",
+        "prepay_id",
+        "prepay_generation",
+        "trade_state",
+        "transaction_id",
+    } <= {column["name"] for column in inspector.get_columns("payment_mock_provider_records")}
     assert {
         "ix_import_jobs_workbook_sha256",
         "uq_import_jobs_creator_idempotency_key",
@@ -172,6 +220,10 @@ def test_catalog_migration_downgrades_to_0001_and_upgrades_again() -> None:
             "product_images",
             "import_jobs",
             "object_cleanup_jobs",
+            "payment_attempts",
+            "payment_state_events",
+            "payment_provider_events",
+            "payment_mock_provider_records",
         } <= set(inspector.get_table_names())
         assert "is_admin" in {column["name"] for column in inspector.get_columns("users")}
     finally:
