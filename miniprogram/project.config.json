@@ -1,0 +1,24 @@
+{
+  "description": "Harbor Market native WeChat Mini Program",
+  "appid": "touristappid",
+  "compileType": "miniprogram",
+  "libVersion": "widelyUsed",
+  "miniprogramRoot": "src/",
+  "projectname": "harbor-market-miniprogram",
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "preloadBackgroundData": false,
+    "minified": true,
+    "urlCheck": false
+  },
+  "packOptions": {
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "tests"
+      }
+    ]
+  }
+}

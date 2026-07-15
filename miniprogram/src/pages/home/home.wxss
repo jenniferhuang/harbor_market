@@ -1,0 +1,148 @@
+.home-page {
+  padding-top: 36rpx;
+}
+
+.hero {
+  padding: 18rpx 4rpx 28rpx;
+}
+
+.hero__eyebrow {
+  display: block;
+  margin-bottom: 10rpx;
+  color: #0f6b5f;
+  font-size: 22rpx;
+  font-weight: 750;
+  letter-spacing: 4rpx;
+}
+
+.search {
+  display: flex;
+  min-height: 92rpx;
+  align-items: center;
+  padding: 8rpx;
+}
+
+.search__input {
+  min-width: 0;
+  height: 74rpx;
+  flex: 1;
+  padding: 0 20rpx;
+}
+
+.search__clear,
+.search__submit {
+  width: auto;
+  min-width: 100rpx;
+  height: 72rpx;
+  margin: 0;
+  border-radius: 14rpx;
+  padding: 0 20rpx;
+  font-size: 26rpx;
+  line-height: 72rpx;
+}
+
+.search__clear {
+  background: transparent;
+  color: #62746f;
+}
+
+.search__submit {
+  background: #0f6b5f;
+  color: #ffffff;
+  font-weight: 650;
+}
+
+.category-strip {
+  width: 100%;
+  margin: 24rpx 0 6rpx;
+  white-space: nowrap;
+}
+
+.category-strip__inner {
+  display: inline-flex;
+  gap: 14rpx;
+  padding: 4rpx 2rpx 14rpx;
+}
+
+.category-chip {
+  width: auto;
+  min-width: 108rpx;
+  min-height: 68rpx;
+  margin: 0;
+  border: 1rpx solid #cddbd7;
+  border-radius: 999rpx;
+  padding: 13rpx 24rpx;
+  background: #ffffff;
+  color: #4d625d;
+  font-size: 25rpx;
+  line-height: 1.5;
+}
+
+.category-chip--active {
+  border-color: #0f6b5f;
+  background: #0f6b5f;
+  color: #ffffff;
+  font-weight: 650;
+}
+
+.results-heading {
+  display: flex;
+  min-height: 70rpx;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4rpx;
+}
+
+.results-heading__count {
+  font-size: 27rpx;
+  font-weight: 650;
+}
+
+.results-heading__loading {
+  color: #637772;
+  font-size: 24rpx;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20rpx;
+}
+
+.inline-error {
+  margin-top: 22rpx;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  background: #fff3f1;
+  color: #9d352c;
+  line-height: 1.5;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20rpx;
+  padding: 34rpx 0 8rpx;
+}
+
+.pagination__button {
+  width: auto;
+  min-width: 150rpx;
+  min-height: 76rpx;
+  margin: 0;
+  padding: 15rpx 24rpx;
+  font-size: 26rpx;
+}
+
+.pagination__button[disabled] {
+  border-color: #dfe6e3;
+  color: #a4b1ad;
+}
+
+.pagination__label {
+  min-width: 156rpx;
+  color: #5e716c;
+  font-size: 25rpx;
+  text-align: center;
+}

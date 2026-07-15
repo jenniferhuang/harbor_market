@@ -1,0 +1,121 @@
+.settings-page {
+  padding-top: 36rpx;
+}
+
+.settings-heading {
+  padding: 10rpx 4rpx 28rpx;
+}
+
+.settings-card {
+  margin-bottom: 22rpx;
+  padding: 30rpx;
+}
+
+.settings-card__title,
+.settings-card__help {
+  display: block;
+}
+
+.settings-card__title {
+  font-size: 31rpx;
+  font-weight: 700;
+}
+
+.settings-card__help {
+  margin-top: 10rpx;
+  color: #687a75;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.base-url-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 88rpx;
+  margin-top: 24rpx;
+  border: 1rpx solid #bdcec9;
+  border-radius: 15rpx;
+  padding: 0 20rpx;
+  background: #fbfdfc;
+  color: #17332f;
+  font-size: 26rpx;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.settings-actions__button {
+  min-width: 0;
+  margin: 0;
+  flex: 1;
+}
+
+.settings-status {
+  margin-top: 20rpx;
+  border-radius: 14rpx;
+  padding: 17rpx;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.settings-status--success {
+  background: #e8f5ef;
+  color: #17614e;
+}
+
+.settings-status--error {
+  background: #fff1ef;
+  color: #99382e;
+}
+
+.requirements-card {
+  background: #f9fcfb;
+}
+
+.requirement-row {
+  display: flex;
+  margin-top: 20rpx;
+  align-items: flex-start;
+  gap: 16rpx;
+  color: #536963;
+  line-height: 1.6;
+}
+
+.requirement-row__number {
+  display: flex;
+  width: 42rpx;
+  height: 42rpx;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #dcefe9;
+  color: #12685c;
+  font-size: 23rpx;
+  font-weight: 700;
+}
+
+.saved-value {
+  padding: 12rpx 6rpx;
+}
+
+.saved-value__label,
+.saved-value__url {
+  display: block;
+}
+
+.saved-value__label {
+  color: #73837f;
+  font-size: 23rpx;
+}
+
+.saved-value__url {
+  margin-top: 8rpx;
+  overflow-wrap: anywhere;
+  color: #314f48;
+  font-size: 24rpx;
+  line-height: 1.55;
+}

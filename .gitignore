@@ -17,6 +17,7 @@ htmlcov/
 node_modules/
 dist/
 coverage/
+miniprogram/project.private.config.json
 
 # Runtime and test artifacts
 .data/

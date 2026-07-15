@@ -1,0 +1,66 @@
+<view class="page-shell settings-page" aria-role="main">
+  <view class="settings-heading">
+    <text class="page-heading">连接设置</text>
+    <text class="page-intro">配置 Harbor Market 后端的 HTTPS 公网入口。</text>
+  </view>
+
+  <view class="surface settings-card">
+    <text class="settings-card__title">API 基础地址</text>
+    <text class="settings-card__help">
+      例如 https://shop-api.example.cn。不要填写 /api/v1，也不要以斜杠结尾。
+    </text>
+    <input
+      class="base-url-input"
+      value="{{baseUrlInput}}"
+      type="text"
+      maxlength="240"
+      placeholder="https://shop-api.example.cn"
+      bindinput="onBaseUrlInput"
+      aria-label="API 基础地址"
+    />
+
+    <view class="settings-actions" aria-role="group" aria-label="API 地址操作">
+      <button
+        class="secondary-button settings-actions__button"
+        disabled="{{testing || saving}}"
+        bindtap="testConnection"
+      >{{testing ? '正在测试…' : '测试连接'}}</button>
+      <button
+        class="primary-button settings-actions__button"
+        disabled="{{testing || saving}}"
+        bindtap="saveBaseUrl"
+      >{{saving ? '正在保存…' : '保存地址'}}</button>
+    </view>
+
+    <view
+      wx:if="{{statusMessage}}"
+      class="settings-status settings-status--{{statusKind}}"
+      aria-role="{{statusKind == 'error' ? 'alert' : 'status'}}"
+    >{{statusMessage}}</view>
+  </view>
+
+  <view class="surface settings-card requirements-card">
+    <text class="settings-card__title">微信环境要求</text>
+    <view class="requirement-row">
+      <text class="requirement-row__number">1</text>
+      <text>真机和体验版必须使用 HTTPS，证书需要有效。</text>
+    </view>
+    <view class="requirement-row">
+      <text class="requirement-row__number">2</text>
+      <text>域名必须添加到小程序后台的 request 合法域名。</text>
+    </view>
+    <view class="requirement-row">
+      <text class="requirement-row__number">3</text>
+      <text>开发者工具可以临时关闭域名校验，但该选项不能替代正式配置。</text>
+    </view>
+    <view class="requirement-row">
+      <text class="requirement-row__number">4</text>
+      <text>当前版本只有目录与本机购物车，不会创建订单或发起支付。</text>
+    </view>
+  </view>
+
+  <view class="saved-value" aria-label="当前已保存地址">
+    <text class="saved-value__label">当前地址</text>
+    <text class="saved-value__url" user-select="true">{{savedBaseUrl || '尚未配置'}}</text>
+  </view>
+</view>

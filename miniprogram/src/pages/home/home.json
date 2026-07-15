@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "Harbor Market",
+  "enablePullDownRefresh": true,
+  "backgroundTextStyle": "dark",
+  "usingComponents": {
+    "product-card": "/components/product-card/product-card"
+  }
+}
