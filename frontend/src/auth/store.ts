@@ -2,7 +2,7 @@ import { readonly, reactive } from 'vue'
 import { authApi, type AuthApi, type LoginCredentials, type RegistrationInput, type User } from '../api/auth'
 import { ApiError } from '../api/client'
 
-export type AuthStatus = 'unknown' | 'checking' | 'authenticated' | 'anonymous'
+export type AuthStatus = 'unknown' | 'checking' | 'authenticated' | 'anonymous' | 'error'
 
 interface AuthState {
   status: AuthStatus
@@ -16,6 +16,7 @@ export function createAuthStore(api: AuthApi = authApi) {
   })
 
   let restoration: Promise<void> | null = null
+  let authEpoch = 0
 
   function setAuthenticated(user: User) {
     state.user = user
@@ -23,19 +24,33 @@ export function createAuthStore(api: AuthApi = authApi) {
   }
 
   function clearSession() {
+    authEpoch += 1
     state.user = null
     state.status = 'anonymous'
   }
 
   async function restore(force = false): Promise<void> {
-    if (!force && state.status !== 'unknown' && state.status !== 'checking') return
+    if (!force && (state.status === 'authenticated' || state.status === 'anonymous')) return
     if (restoration) return restoration
 
+    const epoch = authEpoch
     state.status = 'checking'
     restoration = api
       .me()
-      .then(setAuthenticated)
-      .catch(() => clearSession())
+      .then((user) => {
+        if (epoch === authEpoch) setAuthenticated(user)
+      })
+      .catch((error: unknown) => {
+        if (epoch !== authEpoch) return
+        if (error instanceof ApiError && error.status === 401) {
+          state.user = null
+          state.status = 'anonymous'
+          return
+        }
+        state.user = null
+        state.status = 'error'
+        throw error
+      })
       .finally(() => {
         restoration = null
       })
@@ -44,8 +59,9 @@ export function createAuthStore(api: AuthApi = authApi) {
   }
 
   async function login(credentials: LoginCredentials): Promise<User> {
+    const epoch = ++authEpoch
     const user = await api.login(credentials)
-    setAuthenticated(user)
+    if (epoch === authEpoch) setAuthenticated(user)
     return user
   }
 
@@ -54,13 +70,20 @@ export function createAuthStore(api: AuthApi = authApi) {
   }
 
   async function logout(): Promise<void> {
+    const previousUser = state.user
+    const previousStatus = state.status
+    const epoch = ++authEpoch
+    state.user = null
+    state.status = 'anonymous'
     try {
       await api.logout()
-      clearSession()
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        clearSession()
         return
+      }
+      if (epoch === authEpoch) {
+        state.user = previousUser
+        state.status = previousStatus
       }
       throw error
     }

@@ -23,6 +23,7 @@ const formError = ref('')
 const isSubmitting = ref(false)
 
 const registrationSucceeded = computed(() => route.query.registered === '1')
+const sessionCheckFailed = computed(() => route.query.auth_error === 'session_check_failed')
 
 watch(username, () => {
   errors.username = undefined
@@ -87,6 +88,13 @@ async function submit() {
   <AuthLayout title="Sign in" description="Welcome back. Enter your account details to continue.">
     <p v-if="registrationSucceeded" class="notice notice--success" role="status">
       Account created. You can sign in now.
+    </p>
+    <p
+      v-if="sessionCheckFailed"
+      class="notice notice--error"
+      role="alert"
+    >
+      We could not verify your existing session. Check the service connection, then sign in again.
     </p>
 
     <form class="auth-form" novalidate @submit.prevent="submit">

@@ -70,7 +70,7 @@ class CatalogService:
         return category
 
     def delete_category(self, session: Session, category_id: int) -> None:
-        category = self.get_category(session, category_id)
+        category = self._get_category_for_update(session, category_id)
         child_exists = session.scalar(
             select(Category.id).where(Category.parent_id == category_id).limit(1)
         )
@@ -84,11 +84,28 @@ class CatalogService:
                 "Category cannot be deleted while it has child categories or products",
             )
         session.delete(category)
-        session.commit()
+        try:
+            session.commit()
+        except IntegrityError as exc:
+            session.rollback()
+            raise ApiError(
+                409,
+                "category_in_use",
+                "Category cannot be deleted while it has child categories or products",
+            ) from exc
 
     @staticmethod
     def get_category(session: Session, category_id: int) -> Category:
         category = session.get(Category, category_id)
+        if category is None:
+            raise ApiError(404, "category_not_found", "Category was not found")
+        return category
+
+    @staticmethod
+    def _get_category_for_update(session: Session, category_id: int) -> Category:
+        category = session.scalar(
+            select(Category).where(Category.id == category_id).with_for_update()
+        )
         if category is None:
             raise ApiError(404, "category_not_found", "Category was not found")
         return category

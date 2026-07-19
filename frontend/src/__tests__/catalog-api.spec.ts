@@ -46,11 +46,12 @@ afterEach(() => {
 
 describe('catalog administration API', () => {
   it('uses product filters and derives category_id from the nested category response', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
+    const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args
+      return new Response(
         JSON.stringify({ data: { items: [product], total: 1, page: 2, page_size: 20 } }),
-      ),
-    )
+      )
+    })
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await catalogAdminApi.listProducts({
@@ -69,7 +70,10 @@ describe('catalog administration API', () => {
   })
 
   it('sends the image multipart fields and unwraps the updated product', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: product })))
+    const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args
+      return new Response(JSON.stringify({ data: product }))
+    })
     vi.stubGlobal('fetch', fetchMock)
     const image = new File(['image'], 'latte.webp', { type: 'image/webp' })
 
@@ -91,8 +95,9 @@ describe('catalog administration API', () => {
   })
 
   it('normalizes Excel dry-run results and row-level errors', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(
+    const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args
+      return new Response(
         JSON.stringify({
           data: {
             job_id: 12,
@@ -100,10 +105,11 @@ describe('catalog administration API', () => {
             valid: false,
             summary: { products: 1 },
             errors: [{ sheet: 'Products', row: 2, field: 'name', message: '商品名称不能为空' }],
+            promoted_staging_keys: [],
           },
         }),
-      ),
-    )
+      )
+    })
     vi.stubGlobal('fetch', fetchMock)
     const workbook = new File(['xlsx'], 'catalog.xlsx')
 
@@ -114,6 +120,84 @@ describe('catalog administration API', () => {
       'catalog-test-key',
     )
     expect(result).toMatchObject({ job_id: 12, dry_run: true, valid: false })
+    expect(result.promoted_staging_keys).toEqual([])
     expect(result.errors[0]).toMatchObject({ sheet: 'Products', row: 2, field: 'name' })
+  })
+
+  it('rejects malformed category, product-list, and import success contracts', async () => {
+    const fetchMock = vi
+      .fn(async () => new Response(JSON.stringify({ data: {} })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: null })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { items: [] } })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(catalogAdminApi.listCategories()).rejects.toMatchObject({ status: 502 })
+    await expect(catalogAdminApi.listProducts()).rejects.toMatchObject({ status: 502 })
+    await expect(
+      catalogAdminApi.importProducts(new File(['xlsx'], 'catalog.xlsx'), true),
+    ).rejects.toMatchObject({ status: 502 })
+  })
+
+  it('rejects a malformed staged-image upload contract', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: {
+            object_key: 'products/staged/LATTE-01/image.webp',
+            mime_type: 'image/webp',
+            size_bytes: '100',
+            width: 300,
+            height: 300,
+            expires_at: '2026-07-22T00:00:00Z',
+          },
+        }),
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      catalogAdminApi.uploadStagedProductImage(
+        'LATTE-01',
+        new File(['image'], 'latte.webp', { type: 'image/webp' }),
+      ),
+    ).rejects.toMatchObject({ status: 502 })
+  })
+
+  it('updates image metadata and wires cleanup reporting endpoints', async () => {
+    const cleanupJob = {
+      id: 31,
+      created_by: 1,
+      object_key: 'products/9/gallery/orphan.webp',
+      reason: 'image_deleted',
+      status: 'failed',
+      attempts: 2,
+      last_error: 'storage unavailable',
+      not_before: null,
+      created_at: '2026-07-15T00:00:00Z',
+      updated_at: '2026-07-15T00:01:00Z',
+      completed_at: null,
+    }
+    const fetchMock = vi
+      .fn(async (...args: Parameters<typeof fetch>) => {
+        void args
+        return new Response(JSON.stringify({ data: product }))
+      })
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: product })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [cleanupJob] })))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ data: { ...cleanupJob, status: 'completed' } })),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await catalogAdminApi.updateProductImage(9, 4, { alt_text: '新说明', sort_order: 3 })
+    const jobs = await catalogAdminApi.listObjectCleanupJobs('failed')
+    const retried = await catalogAdminApi.retryObjectCleanupJob(31)
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/admin/products/9/images/4')
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('PATCH')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/admin/object-cleanup-jobs?status=failed')
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/api/v1/admin/object-cleanup-jobs/31/retry')
+    expect(jobs[0]?.status).toBe('failed')
+    expect(retried.status).toBe('completed')
   })
 })

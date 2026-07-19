@@ -47,6 +47,47 @@ describe('auth store', () => {
     expect(store.user).toBeNull()
   })
 
+  it('keeps service failures distinct from an anonymous session', async () => {
+    const failure = new ApiError(503, 'Service unavailable')
+    const me = vi.fn()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(user)
+    const store = createAuthStore(
+      createApi({ me }),
+    )
+
+    await expect(store.restore()).rejects.toBe(failure)
+
+    expect(store.state.status).toBe('error')
+    expect(store.user).toBeNull()
+
+    await store.restore()
+
+    expect(me).toHaveBeenCalledTimes(2)
+    expect(store.state.status).toBe('authenticated')
+    expect(store.user).toEqual(user)
+  })
+
+  it('does not let a delayed session refresh undo logout', async () => {
+    let resolveUser: ((value: User) => void) | undefined
+    const me = vi.fn(
+      () =>
+        new Promise<User>((resolve) => {
+          resolveUser = resolve
+        }),
+    )
+    const store = createAuthStore(createApi({ me }))
+    await store.login({ username: 'marina', password: 'correct horse' })
+
+    const refresh = store.restore(true)
+    await store.logout()
+    resolveUser?.(user)
+    await refresh
+
+    expect(store.state.status).toBe('anonymous')
+    expect(store.user).toBeNull()
+  })
+
   it('sets the authenticated user on login and clears it after logout', async () => {
     const logout = vi.fn(async () => undefined)
     const store = createAuthStore(createApi({ logout }))

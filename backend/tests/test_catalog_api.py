@@ -10,8 +10,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from app.models import ObjectCleanupJob
+from app.models import Category, ObjectCleanupJob
 
 
 def _image_bytes(image_format: str = "PNG", size: tuple[int, int] = (3, 2)) -> bytes:
@@ -264,6 +266,45 @@ def test_category_crud_parent_rules_and_public_active_filter(
     assert admin_client.delete(f"/api/v1/admin/categories/{child['id']}").status_code == 204
     assert admin_client.delete(f"/api/v1/admin/categories/{parent['id']}").status_code == 204
     assert admin_client.get("/api/v1/admin/categories").json()["data"] == []
+
+
+def test_category_delete_translates_late_foreign_key_conflict(
+    admin_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    category = _create_category(admin_client, code="DELETE-RACE", name="删除竞态")
+    original_commit = Session.commit
+    original_rollback = Session.rollback
+    flushed_category_ids: list[int] = []
+    rollback_states: list[tuple[bool, bool]] = []
+
+    def fail_late_category_delete(session: Session) -> None:
+        deleted_categories = [
+            item for item in session.deleted if isinstance(item, Category)
+        ]
+        if deleted_categories:
+            flushed_category_ids.extend(item.id for item in deleted_categories)
+            session.flush()
+            raise IntegrityError("DELETE FROM categories", {}, RuntimeError("foreign key"))
+        original_commit(session)
+
+    def record_rollback(session: Session) -> None:
+        had_transaction = session.in_transaction()
+        original_rollback(session)
+        rollback_states.append((had_transaction, session.in_transaction()))
+
+    monkeypatch.setattr(Session, "commit", fail_late_category_delete)
+    monkeypatch.setattr(Session, "rollback", record_rollback)
+
+    response = admin_client.delete(f"/api/v1/admin/categories/{category['id']}")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "category_in_use"
+    assert flushed_category_ids == [category["id"]]
+    assert rollback_states == [(True, False)]
+    assert {
+        item["code"] for item in admin_client.get("/api/v1/admin/categories").json()["data"]
+    } == {"DELETE-RACE"}
 
 
 def test_product_crud_builds_default_sku_and_replaces_sku_set(

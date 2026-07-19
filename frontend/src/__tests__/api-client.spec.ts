@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AUTH_REQUIRED_EVENT, ApiClient, ApiError } from '../api/client'
+import { ADMIN_PERMISSION_CHANGED_EVENT, AUTH_REQUIRED_EVENT, ApiClient } from '../api/client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -7,7 +7,10 @@ afterEach(() => {
 
 describe('API client', () => {
   it('uses a same-origin path and includes cookie credentials', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: { ok: true } })))
+    const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args
+      return new Response(JSON.stringify({ data: { ok: true } }))
+    })
     vi.stubGlobal('fetch', fetchMock)
     const client = new ApiClient()
 
@@ -33,7 +36,7 @@ describe('API client', () => {
     )
     const client = new ApiClient()
 
-    await expect(client.post('/api/v1/auth/register', {})).rejects.toMatchObject<ApiError>({
+    await expect(client.post('/api/v1/auth/register', {})).rejects.toMatchObject({
       status: 422,
       fieldErrors: { confirmPassword: 'Passwords do not match' },
     })
@@ -57,7 +60,7 @@ describe('API client', () => {
     )
     const client = new ApiClient()
 
-    await expect(client.post('/api/v1/auth/register', {})).rejects.toMatchObject<ApiError>({
+    await expect(client.post('/api/v1/auth/register', {})).rejects.toMatchObject({
       status: 409,
       code: 'USERNAME_TAKEN',
       message: 'Choose a different username.',
@@ -66,7 +69,10 @@ describe('API client', () => {
   })
 
   it('sends FormData without forcing a JSON content type', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true })))
+    const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args
+      return new Response(JSON.stringify({ ok: true }))
+    })
     vi.stubGlobal('fetch', fetchMock)
     const client = new ApiClient()
     const form = new FormData()
@@ -82,11 +88,12 @@ describe('API client', () => {
   })
 
   it('downloads binary responses with cookie credentials', async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(new Uint8Array([80, 75, 3, 4]), {
+    const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args
+      return new Response(new Uint8Array([80, 75, 3, 4]), {
         headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-      }),
-    )
+      })
+    })
     vi.stubGlobal('fetch', fetchMock)
     const client = new ApiClient()
 
@@ -101,7 +108,10 @@ describe('API client', () => {
   })
 
   it('supports PATCH and DELETE methods', async () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+    const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>) => {
+      void args
+      return new Response(null, { status: 204 })
+    })
     vi.stubGlobal('fetch', fetchMock)
     const client = new ApiClient()
 
@@ -118,7 +128,7 @@ describe('API client', () => {
     window.addEventListener(AUTH_REQUIRED_EVENT, listener, { once: true })
     const client = new ApiClient()
 
-    await expect(client.get('/api/v1/admin/products')).rejects.toMatchObject<ApiError>({
+    await expect(client.get('/api/v1/admin/products')).rejects.toMatchObject({
       status: 401,
     })
 
@@ -131,11 +141,35 @@ describe('API client', () => {
     window.addEventListener(AUTH_REQUIRED_EVENT, listener, { once: true })
     const client = new ApiClient()
 
-    await expect(client.post('/api/v1/auth/login', {})).rejects.toMatchObject<ApiError>({
+    await expect(client.post('/api/v1/auth/login', {})).rejects.toMatchObject({
       status: 401,
     })
 
     expect(listener).not.toHaveBeenCalled()
     window.removeEventListener(AUTH_REQUIRED_EVENT, listener)
+  })
+
+  it('announces when the backend reports that administrator permission was revoked', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            error: { code: 'admin_required', message: 'Administrator permission is required' },
+          }),
+          { status: 403 },
+        ),
+      ),
+    )
+    const listener = vi.fn()
+    window.addEventListener(ADMIN_PERMISSION_CHANGED_EVENT, listener, { once: true })
+    const client = new ApiClient()
+
+    await expect(client.get('/api/v1/admin/products')).rejects.toMatchObject({
+      status: 403,
+      code: 'admin_required',
+    })
+
+    expect(listener).toHaveBeenCalledOnce()
   })
 })

@@ -50,7 +50,19 @@ export function createAppRouter(
   const router = createRouter({ history, routes })
 
   router.beforeEach(async (to) => {
-    if (to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.guestOnly) await auth.restore()
+    if (to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.guestOnly) {
+      try {
+        await auth.restore()
+      } catch {
+        if (to.meta.requiresAuth || to.meta.requiresAdmin) {
+          return {
+            name: 'login',
+            query: { redirect: to.fullPath, auth_error: 'session_check_failed' },
+          }
+        }
+        return true
+      }
+    }
 
     if (to.meta.requiresAuth && !auth.isAuthenticated) {
       return {

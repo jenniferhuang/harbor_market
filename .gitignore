@@ -17,6 +17,7 @@ htmlcov/
 node_modules/
 dist/
 coverage/
+*.tsbuildinfo
 
 # Runtime and test artifacts
 .data/
@@ -25,6 +26,7 @@ output/
 outputs/
 playwright-report/
 test-results/
+.playwright-cli/
 *.log
 
 # Editors

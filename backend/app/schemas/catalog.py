@@ -595,6 +595,7 @@ class ImportResultData(BaseModel):
     valid: bool
     summary: dict[str, int]
     errors: list[ImportErrorItem]
+    promoted_staging_keys: list[str]
 
 
 class ImportResultResponse(BaseModel):
@@ -613,6 +614,7 @@ class ImportJobRead(BaseModel):
     dry_run: bool
     summary: dict[str, Any]
     errors: list[dict[str, Any]]
+    promoted_staging_keys: list[str]
     created_at: datetime
     completed_at: datetime | None
 

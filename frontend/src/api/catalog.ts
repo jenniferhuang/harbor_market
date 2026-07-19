@@ -3,6 +3,7 @@ import { ApiError, apiClient } from './client'
 export type ProductStatus = 'draft' | 'published' | 'archived'
 export type StockStatus = 'in_stock' | 'out_of_stock' | 'preorder'
 export type ProductImageType = 'cover' | 'gallery' | 'detail'
+export type ObjectCleanupStatus = 'intent' | 'pending' | 'processing' | 'completed' | 'failed'
 
 export interface SpecificationOption {
   code: string
@@ -73,6 +74,11 @@ export interface ProductImage {
   url?: string
   media_url?: string
   created_at?: string
+}
+
+export interface ProductImageUpdate {
+  alt_text?: string | null
+  sort_order?: number
 }
 
 export interface Product {
@@ -149,13 +155,12 @@ export interface ImportIssue {
 }
 
 export interface ImportResult {
-  id?: number
-  job_id?: number
-  status?: string
+  job_id: number
   dry_run: boolean
-  valid?: boolean
+  valid: boolean
   summary: Record<string, unknown>
   errors: ImportIssue[]
+  promoted_staging_keys: string[]
 }
 
 export interface ImportJob {
@@ -167,7 +172,22 @@ export interface ImportJob {
   dry_run: boolean
   summary: Record<string, unknown>
   errors: ImportIssue[]
+  promoted_staging_keys: string[]
   created_at: string
+  completed_at: string | null
+}
+
+export interface ObjectCleanupJob {
+  id: number
+  created_by: number | null
+  object_key: string
+  reason: string
+  status: ObjectCleanupStatus
+  attempts: number
+  last_error: string | null
+  not_before: string | null
+  created_at: string
+  updated_at: string
   completed_at: string | null
 }
 
@@ -184,119 +204,284 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function invalidContract(label: string): never {
+  throw new ApiError(502, `The server returned an invalid ${label} response.`)
+}
+
+function recordValue(value: unknown, label: string): Record<string, unknown> {
+  return isRecord(value) ? value : invalidContract(label)
+}
+
+function stringField(value: Record<string, unknown>, key: string, label: string): string {
+  return typeof value[key] === 'string' ? value[key] : invalidContract(label)
+}
+
+function integerField(value: Record<string, unknown>, key: string, label: string): number {
+  const candidate = value[key]
+  return typeof candidate === 'number' && Number.isSafeInteger(candidate)
+    ? candidate
+    : invalidContract(label)
+}
+
+function booleanField(value: Record<string, unknown>, key: string, label: string): boolean {
+  return typeof value[key] === 'boolean' ? value[key] : invalidContract(label)
+}
+
+function nullableStringField(
+  value: Record<string, unknown>,
+  key: string,
+  label: string,
+): string | null {
+  const candidate = value[key]
+  return candidate === null || typeof candidate === 'string' ? candidate : invalidContract(label)
+}
+
+function nullableIntegerField(
+  value: Record<string, unknown>,
+  key: string,
+  label: string,
+): number | null {
+  const candidate = value[key]
+  return candidate === null || (typeof candidate === 'number' && Number.isSafeInteger(candidate))
+    ? candidate
+    : invalidContract(label)
+}
+
+function enumField<const T extends string>(
+  value: Record<string, unknown>,
+  key: string,
+  allowed: readonly T[],
+  label: string,
+): T {
+  const candidate = value[key]
+  return typeof candidate === 'string' && allowed.includes(candidate as T)
+    ? candidate as T
+    : invalidContract(label)
+}
+
+function stringList(value: unknown, label: string): string[] {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    return invalidContract(label)
+  }
+  return value
+}
+
 function unwrapData(payload: unknown): unknown {
   if (!isRecord(payload)) return payload
   return 'data' in payload ? payload.data : payload
 }
 
-function unwrapEntity<T>(payload: unknown, label: string): T {
-  const value = unwrapData(payload)
-  if (!isRecord(value)) throw new ApiError(502, `The server returned an invalid ${label} response.`)
-  return value as T
+function categoryValue(value: unknown): Category {
+  const item = recordValue(value, 'category')
+  return {
+    id: integerField(item, 'id', 'category'),
+    code: stringField(item, 'code', 'category'),
+    name: stringField(item, 'name', 'category'),
+    description: nullableStringField(item, 'description', 'category'),
+    parent_id: nullableIntegerField(item, 'parent_id', 'category'),
+    sort_order: integerField(item, 'sort_order', 'category'),
+    is_active: booleanField(item, 'is_active', 'category'),
+    created_at: stringField(item, 'created_at', 'category'),
+    updated_at: stringField(item, 'updated_at', 'category'),
+  }
 }
 
-function unwrapItems<T>(payload: unknown): T[] {
-  const value = unwrapData(payload)
-  if (Array.isArray(value)) return value as T[]
-  if (isRecord(value) && Array.isArray(value.items)) return value.items as T[]
-  return []
+function specificationOptionValue(value: unknown): SpecificationOption {
+  const item = recordValue(value, 'product specification option')
+  return {
+    code: stringField(item, 'code', 'product specification option'),
+    name: stringField(item, 'name', 'product specification option'),
+    price_delta_cents: integerField(item, 'price_delta_cents', 'product specification option'),
+    sort: integerField(item, 'sort', 'product specification option'),
+    is_default: booleanField(item, 'is_default', 'product specification option'),
+  }
+}
+
+function productSpecificationValue(value: unknown): ProductSpecification {
+  const item = recordValue(value, 'product specification')
+  if (!Array.isArray(item.options)) invalidContract('product specification')
+  return {
+    code: stringField(item, 'code', 'product specification'),
+    name: stringField(item, 'name', 'product specification'),
+    selection_mode: enumField(item, 'selection_mode', ['single', 'multiple'], 'product specification'),
+    required: booleanField(item, 'required', 'product specification'),
+    min_select: integerField(item, 'min_select', 'product specification'),
+    max_select: integerField(item, 'max_select', 'product specification'),
+    options: item.options.map(specificationOptionValue),
+  }
+}
+
+function productSkuValue(value: unknown): ProductSku {
+  const item = recordValue(value, 'product SKU')
+  const attributes = recordValue(item.attributes, 'product SKU')
+  if (Object.values(attributes).some((attribute) => typeof attribute !== 'string')) {
+    invalidContract('product SKU')
+  }
+  return {
+    id: integerField(item, 'id', 'product SKU'),
+    sku_code: stringField(item, 'sku_code', 'product SKU'),
+    name: stringField(item, 'name', 'product SKU'),
+    price_cents: integerField(item, 'price_cents', 'product SKU'),
+    market_price_cents: nullableIntegerField(item, 'market_price_cents', 'product SKU'),
+    stock_quantity: integerField(item, 'stock_quantity', 'product SKU'),
+    attributes: attributes as Record<string, string>,
+    is_default: booleanField(item, 'is_default', 'product SKU'),
+    is_active: booleanField(item, 'is_active', 'product SKU'),
+    sort_order: integerField(item, 'sort_order', 'product SKU'),
+  }
+}
+
+function productImageValue(value: unknown): ProductImage {
+  const item = recordValue(value, 'product image')
+  return {
+    id: integerField(item, 'id', 'product image'),
+    object_key: stringField(item, 'object_key', 'product image'),
+    image_type: enumField(item, 'image_type', ['cover', 'gallery', 'detail'], 'product image'),
+    alt_text: nullableStringField(item, 'alt_text', 'product image'),
+    sort_order: integerField(item, 'sort_order', 'product image'),
+    mime_type: nullableStringField(item, 'mime_type', 'product image') ?? undefined,
+    size_bytes: nullableIntegerField(item, 'size_bytes', 'product image') ?? undefined,
+    width: nullableIntegerField(item, 'width', 'product image') ?? undefined,
+    height: nullableIntegerField(item, 'height', 'product image') ?? undefined,
+    url: stringField(item, 'url', 'product image'),
+    created_at: stringField(item, 'created_at', 'product image'),
+  }
 }
 
 function productValue(value: unknown): Product {
-  if (!isRecord(value)) throw new ApiError(502, 'The server returned an invalid product response.')
-  const category = isRecord(value.category) ? value.category : undefined
-  const categoryId =
-    typeof value.category_id === 'number'
-      ? value.category_id
-      : typeof category?.id === 'number'
-        ? category.id
-        : undefined
-  if (categoryId === undefined) {
-    throw new ApiError(502, 'The server returned a product without a category.')
+  const item = recordValue(value, 'product')
+  const category = categoryValue(item.category)
+  if (!Array.isArray(item.specifications) || !Array.isArray(item.skus) || !Array.isArray(item.images)) {
+    invalidContract('product')
   }
-  return { ...value, category_id: categoryId } as unknown as Product
+  return {
+    id: integerField(item, 'id', 'product'),
+    product_code: stringField(item, 'product_code', 'product'),
+    name: stringField(item, 'name', 'product'),
+    subtitle: nullableStringField(item, 'subtitle', 'product'),
+    category_id: category.id,
+    category,
+    status: enumField(item, 'status', ['draft', 'published', 'archived'], 'product'),
+    base_price_cents: integerField(item, 'base_price_cents', 'product'),
+    market_price_cents: nullableIntegerField(item, 'market_price_cents', 'product'),
+    currency: stringField(item, 'currency', 'product'),
+    unit: stringField(item, 'unit', 'product'),
+    stock_status: enumField(item, 'stock_status', ['in_stock', 'out_of_stock', 'preorder'], 'product'),
+    inventory_count: nullableIntegerField(item, 'inventory_count', 'product'),
+    featured: booleanField(item, 'featured', 'product'),
+    sort_order: integerField(item, 'sort_order', 'product'),
+    tags: stringList(item.tags, 'product'),
+    selling_points: stringList(item.selling_points, 'product'),
+    description: stringField(item, 'description', 'product'),
+    ingredients: nullableStringField(item, 'ingredients', 'product'),
+    allergen_info: nullableStringField(item, 'allergen_info', 'product'),
+    specifications: item.specifications.map(productSpecificationValue),
+    skus: item.skus.map(productSkuValue),
+    images: item.images.map(productImageValue),
+    created_at: stringField(item, 'created_at', 'product'),
+    updated_at: stringField(item, 'updated_at', 'product'),
+  }
 }
 
 function unwrapProduct(payload: unknown): Product {
   return productValue(unwrapData(payload))
 }
 
-function numberValue(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
-}
-
 function productPage(payload: unknown, requestedPage: number, requestedPageSize: number): ProductPage {
   const value = unwrapData(payload)
-  if (Array.isArray(value)) {
-    return {
-      items: value.map(productValue),
-      total: value.length,
-      page: requestedPage,
-      page_size: requestedPageSize,
-    }
-  }
-
-  if (!isRecord(value)) {
-    return { items: [], total: 0, page: requestedPage, page_size: requestedPageSize }
-  }
-
-  const items = Array.isArray(value.items) ? value.items.map(productValue) : []
+  const page = recordValue(value, 'product list')
+  if (!Array.isArray(page.items)) invalidContract('product list')
   return {
-    items,
-    total: numberValue(value.total, items.length),
-    page: numberValue(value.page, requestedPage),
-    page_size: numberValue(value.page_size, requestedPageSize),
+    items: page.items.map(productValue),
+    total: integerField(page, 'total', 'product list'),
+    page: integerField(page, 'page', 'product list') || requestedPage,
+    page_size: integerField(page, 'page_size', 'product list') || requestedPageSize,
   }
+}
+
+function summaryValue(value: unknown, label: string): Record<string, unknown> {
+  const summary = recordValue(value, label)
+  if (Object.values(summary).some((item) => typeof item !== 'number' || !Number.isFinite(item))) {
+    invalidContract(label)
+  }
+  return summary
+}
+
+function importIssues(value: unknown, label: string): ImportIssue[] {
+  if (!Array.isArray(value)) invalidContract(label)
+  return value.map((issue) => {
+    const item = recordValue(issue, label)
+    return {
+      sheet: stringField(item, 'sheet', label),
+      row: integerField(item, 'row', label),
+      field: stringField(item, 'field', label),
+      message: stringField(item, 'message', label),
+    }
+  })
 }
 
 function importResult(payload: unknown, dryRun: boolean): ImportResult {
-  const value = unwrapData(payload)
-  if (!isRecord(value)) {
-    return { dry_run: dryRun, summary: {}, errors: [] }
-  }
-
-  const rawErrors = Array.isArray(value.errors) ? value.errors : []
-  const errors = rawErrors.flatMap((issue): ImportIssue[] => {
-    if (typeof issue === 'string') return [{ message: issue }]
-    if (!isRecord(issue) || typeof issue.message !== 'string') return []
-    return [
-      {
-        ...(typeof issue.sheet === 'string' ? { sheet: issue.sheet } : {}),
-        ...(typeof issue.row === 'number' ? { row: issue.row } : {}),
-        ...(typeof issue.field === 'string' ? { field: issue.field } : {}),
-        message: issue.message,
-      },
-    ]
-  })
-
+  const value = recordValue(unwrapData(payload), 'catalog import')
+  const responseDryRun = booleanField(value, 'dry_run', 'catalog import')
+  if (responseDryRun !== dryRun) invalidContract('catalog import')
   return {
-    ...(typeof value.id === 'number' ? { id: value.id } : {}),
-    ...(typeof value.job_id === 'number' ? { job_id: value.job_id } : {}),
-    ...(typeof value.status === 'string' ? { status: value.status } : {}),
-    dry_run: typeof value.dry_run === 'boolean' ? value.dry_run : dryRun,
-    ...(typeof value.valid === 'boolean' ? { valid: value.valid } : {}),
-    summary: isRecord(value.summary) ? value.summary : {},
-    errors,
+    job_id: integerField(value, 'job_id', 'catalog import'),
+    dry_run: responseDryRun,
+    valid: booleanField(value, 'valid', 'catalog import'),
+    summary: summaryValue(value.summary, 'catalog import'),
+    errors: importIssues(value.errors, 'catalog import'),
+    promoted_staging_keys: stringList(value.promoted_staging_keys, 'catalog import'),
   }
 }
 
-function importJob(value: unknown): ImportJob | null {
-  if (!isRecord(value) || typeof value.id !== 'number' || typeof value.status !== 'string') {
-    return null
-  }
-  const parsed = importResult(value, Boolean(value.dry_run))
+function importJobValue(value: unknown): ImportJob {
+  const item = recordValue(value, 'import job')
   return {
-    id: value.id,
-    status: value.status,
-    original_filename:
-      typeof value.original_filename === 'string' ? value.original_filename : 'products.xlsx',
-    workbook_sha256: typeof value.workbook_sha256 === 'string' ? value.workbook_sha256 : '',
-    idempotency_key: typeof value.idempotency_key === 'string' ? value.idempotency_key : null,
-    dry_run: Boolean(value.dry_run),
-    summary: parsed.summary,
-    errors: parsed.errors,
-    created_at: typeof value.created_at === 'string' ? value.created_at : '',
-    completed_at: typeof value.completed_at === 'string' ? value.completed_at : null,
+    id: integerField(item, 'id', 'import job'),
+    status: stringField(item, 'status', 'import job'),
+    original_filename: stringField(item, 'original_filename', 'import job'),
+    workbook_sha256: stringField(item, 'workbook_sha256', 'import job'),
+    idempotency_key: nullableStringField(item, 'idempotency_key', 'import job'),
+    dry_run: booleanField(item, 'dry_run', 'import job'),
+    summary: summaryValue(item.summary, 'import job'),
+    errors: importIssues(item.errors, 'import job'),
+    promoted_staging_keys: stringList(item.promoted_staging_keys, 'import job'),
+    created_at: stringField(item, 'created_at', 'import job'),
+    completed_at: nullableStringField(item, 'completed_at', 'import job'),
+  }
+}
+
+function cleanupJobValue(value: unknown): ObjectCleanupJob {
+  const item = recordValue(value, 'object cleanup job')
+  return {
+    id: integerField(item, 'id', 'object cleanup job'),
+    created_by: nullableIntegerField(item, 'created_by', 'object cleanup job'),
+    object_key: stringField(item, 'object_key', 'object cleanup job'),
+    reason: stringField(item, 'reason', 'object cleanup job'),
+    status: enumField(
+      item,
+      'status',
+      ['intent', 'pending', 'processing', 'completed', 'failed'],
+      'object cleanup job',
+    ),
+    attempts: integerField(item, 'attempts', 'object cleanup job'),
+    last_error: nullableStringField(item, 'last_error', 'object cleanup job'),
+    not_before: nullableStringField(item, 'not_before', 'object cleanup job'),
+    created_at: stringField(item, 'created_at', 'object cleanup job'),
+    updated_at: stringField(item, 'updated_at', 'object cleanup job'),
+    completed_at: nullableStringField(item, 'completed_at', 'object cleanup job'),
+  }
+}
+
+function stagedProductImageValue(value: unknown): StagedProductImage {
+  const item = recordValue(value, 'staged product image')
+  return {
+    object_key: stringField(item, 'object_key', 'staged product image'),
+    mime_type: stringField(item, 'mime_type', 'staged product image'),
+    size_bytes: integerField(item, 'size_bytes', 'staged product image'),
+    width: integerField(item, 'width', 'staged product image'),
+    height: integerField(item, 'height', 'staged product image'),
+    expires_at: stringField(item, 'expires_at', 'staged product image'),
   }
 }
 
@@ -315,20 +500,20 @@ const base = '/api/v1/admin' as const
 
 export const catalogAdminApi = {
   async listCategories(): Promise<Category[]> {
-    return unwrapItems<Category>(await apiClient.get<unknown>(`${base}/categories`))
+    const values = unwrapData(await apiClient.get<unknown>(`${base}/categories`))
+    if (!Array.isArray(values)) invalidContract('category list')
+    return values.map(categoryValue)
   },
 
   async createCategory(input: CategoryInput): Promise<Category> {
-    return unwrapEntity<Category>(
-      await apiClient.post<unknown>(`${base}/categories`, input),
-      'category',
+    return categoryValue(
+      unwrapData(await apiClient.post<unknown>(`${base}/categories`, input)),
     )
   },
 
   async updateCategory(id: number, input: Partial<CategoryInput>): Promise<Category> {
-    return unwrapEntity<Category>(
-      await apiClient.patch<unknown>(`${base}/categories/${id}`, input),
-      'category',
+    return categoryValue(
+      unwrapData(await apiClient.patch<unknown>(`${base}/categories/${id}`, input)),
     )
   },
 
@@ -379,13 +564,22 @@ export const catalogAdminApi = {
     )
   },
 
+  async updateProductImage(
+    productId: number,
+    imageId: number,
+    input: ProductImageUpdate,
+  ): Promise<Product> {
+    return unwrapProduct(
+      await apiClient.patch<unknown>(`${base}/products/${productId}/images/${imageId}`, input),
+    )
+  },
+
   async uploadStagedProductImage(productCode: string, file: File): Promise<StagedProductImage> {
     const form = new FormData()
     form.append('product_code', productCode)
     form.append('file', file)
-    return unwrapEntity<StagedProductImage>(
-      await apiClient.postForm<unknown>(`${base}/product-images/staging`, form),
-      'staged product image',
+    return stagedProductImageValue(
+      unwrapData(await apiClient.postForm<unknown>(`${base}/product-images/staging`, form)),
     )
   },
 
@@ -421,7 +615,29 @@ export const catalogAdminApi = {
     const values = unwrapData(
       await apiClient.get<unknown>(`${base}/import-jobs?limit=${encodeURIComponent(String(limit))}`),
     )
-    return Array.isArray(values) ? values.flatMap((value) => importJob(value) ?? []) : []
+    if (!Array.isArray(values)) invalidContract('import job list')
+    return values.map(importJobValue)
+  },
+
+  async getImportJob(id: number): Promise<ImportJob> {
+    return importJobValue(
+      unwrapData(await apiClient.get<unknown>(`${base}/import-jobs/${id}`)),
+    )
+  },
+
+  async listObjectCleanupJobs(status?: ObjectCleanupStatus): Promise<ObjectCleanupJob[]> {
+    const query = status ? `?status=${encodeURIComponent(status)}` : ''
+    const values = unwrapData(
+      await apiClient.get<unknown>(`${base}/object-cleanup-jobs${query}`),
+    )
+    if (!Array.isArray(values)) invalidContract('object cleanup job list')
+    return values.map(cleanupJobValue)
+  },
+
+  async retryObjectCleanupJob(id: number): Promise<ObjectCleanupJob> {
+    return cleanupJobValue(
+      unwrapData(await apiClient.post<unknown>(`${base}/object-cleanup-jobs/${id}/retry`)),
+    )
   },
 }
 

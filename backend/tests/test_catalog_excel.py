@@ -445,7 +445,7 @@ def test_excel_import_idempotency_replays_same_result_and_rejects_key_reuse(
     assert re.fullmatch(r"[0-9a-f]{64}", jobs[0]["workbook_sha256"])
 
 
-def test_pending_excel_import_idempotency_retry_returns_original_job(
+def test_pending_excel_import_idempotency_retry_reports_in_progress(
     admin_client: TestClient,
     app: FastAPI,
 ) -> None:
@@ -478,14 +478,8 @@ def test_pending_excel_import_idempotency_retry_returns_original_job(
         dry_run=False,
         idempotency_key=key,
     )
-    assert retried.status_code == 200, retried.text
-    assert retried.json()["data"] == {
-        "job_id": pending_id,
-        "dry_run": False,
-        "valid": False,
-        "summary": {},
-        "errors": [],
-    }
+    assert retried.status_code == 409, retried.text
+    assert retried.json()["error"]["code"] == "import_in_progress"
     jobs = admin_client.get("/api/v1/admin/import-jobs").json()["data"]
     assert [job["id"] for job in jobs] == [pending_id]
     assert jobs[0]["status"] == "pending"
@@ -519,6 +513,11 @@ def test_formal_import_completes_staging_expiry_and_queues_source_cleanup(
     imported = _post_import(admin_client, workbook, dry_run=False)
     assert imported.status_code == 200, imported.text
     assert imported.json()["data"]["valid"] is True
+    assert imported.json()["data"]["promoted_staging_keys"] == [source_key]
+    job_id = imported.json()["data"]["job_id"]
+    job = admin_client.get(f"/api/v1/admin/import-jobs/{job_id}")
+    assert job.status_code == 200, job.text
+    assert job.json()["data"]["promoted_staging_keys"] == [source_key]
     jobs = [
         item
         for item in admin_client.get("/api/v1/admin/object-cleanup-jobs").json()["data"]
@@ -1056,11 +1055,152 @@ def test_excel_rejects_non_finite_prices(
     assert any(
         error["sheet"] == "Products"
         and error["row"] == 2
+        and error["field"] == "base_price_yuan"
         and _has_chinese(error["message"])
         and "价格" in error["message"]
         for error in result["errors"]
     )
     assert admin_client.get("/api/v1/admin/products").json()["data"]["total"] == 0
+
+
+def test_excel_reports_pydantic_and_parser_errors_at_actual_columns(
+    admin_client: TestClient,
+) -> None:
+    _create_category(admin_client)
+    missing_name = _product_row("FIELD-PRODUCT", name="")
+    workbook = _workbook_with_rows(
+        _download_template(admin_client),
+        products=[missing_name],
+        skus=[
+            {
+                "product_code": "FIELD-PRODUCT",
+                "sku_code": "FIELD-PRODUCT-LARGE",
+                "name": "大杯",
+                "price_yuan": "not-a-price",
+                "stock_quantity": 1,
+                "attributes_json": "{}",
+                "is_default": True,
+                "is_active": True,
+                "sort_order": 0,
+            }
+        ],
+    )
+
+    result = _post_import(admin_client, workbook, dry_run=True).json()["data"]
+
+    assert result["valid"] is False
+    assert {
+        (error["sheet"], error["row"], error["field"])
+        for error in result["errors"]
+    } >= {
+        ("Products", 2, "name"),
+        ("SKUs", 2, "price_yuan"),
+    }
+
+
+@pytest.mark.parametrize(
+    ("skus", "expected_row", "expected_field"),
+    [
+        (
+            [
+                {
+                    "product_code": "SKU-MERGE-FIELD",
+                    "sku_code": "SKU-MERGE-FIELD-A",
+                    "name": "规格 A",
+                    "price_yuan": "19.90",
+                    "is_default": True,
+                    "is_active": True,
+                },
+                {
+                    "product_code": "SKU-MERGE-FIELD",
+                    "sku_code": "SKU-MERGE-FIELD-B",
+                    "name": "规格 B",
+                    "price_yuan": "20.90",
+                    "is_default": True,
+                    "is_active": True,
+                },
+            ],
+            3,
+            "is_default",
+        ),
+        (
+            [
+                {
+                    "product_code": "SKU-MERGE-FIELD",
+                    "sku_code": "SKU-MERGE-FIELD-INACTIVE",
+                    "name": "停用规格",
+                    "price_yuan": "19.90",
+                    "is_default": False,
+                    "is_active": False,
+                }
+            ],
+            2,
+            "is_active",
+        ),
+    ],
+)
+def test_excel_reports_final_sku_errors_on_sku_source_row(
+    admin_client: TestClient,
+    skus: list[dict[str, Any]],
+    expected_row: int,
+    expected_field: str,
+) -> None:
+    _create_category(admin_client)
+    workbook = _workbook_with_rows(
+        _download_template(admin_client),
+        products=[_product_row("SKU-MERGE-FIELD")],
+        skus=skus,
+    )
+
+    result = _post_import(admin_client, workbook, dry_run=True).json()["data"]
+
+    assert result["valid"] is False
+    assert any(
+        error["sheet"] == "SKUs"
+        and error["row"] == expected_row
+        and error["field"] == expected_field
+        for error in result["errors"]
+    )
+    assert not any(
+        error["sheet"] == "Products" and error["field"] == expected_field
+        for error in result["errors"]
+    )
+
+
+def test_excel_maps_product_and_sku_price_comparisons_to_market_price_column(
+    admin_client: TestClient,
+) -> None:
+    _create_category(admin_client)
+    product = _product_row("MARKET-COMPARISON")
+    product["base_price_yuan"] = "20.00"
+    product["market_price_yuan"] = "19.00"
+    workbook = _workbook_with_rows(
+        _download_template(admin_client),
+        products=[product],
+        skus=[
+            {
+                "product_code": "MARKET-COMPARISON",
+                "sku_code": "MARKET-COMPARISON-LARGE",
+                "name": "大杯",
+                "price_yuan": "20.00",
+                "market_price_yuan": "19.00",
+                "stock_quantity": 1,
+                "is_default": True,
+                "is_active": True,
+            }
+        ],
+    )
+
+    result = _post_import(admin_client, workbook, dry_run=True).json()["data"]
+
+    assert result["valid"] is False
+    assert {
+        (error["sheet"], error["row"], error["field"])
+        for error in result["errors"]
+    } >= {
+        ("Products", 2, "market_price_yuan"),
+        ("SKUs", 2, "market_price_yuan"),
+    }
 
 
 def test_excel_rejects_image_alt_text_longer_than_200_characters(

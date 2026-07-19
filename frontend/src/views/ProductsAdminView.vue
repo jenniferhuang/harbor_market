@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Download,
   FileCheck2,
   FileSpreadsheet,
@@ -28,11 +29,15 @@ import {
   type CategoryInput,
   type ImportJob,
   type ImportResult,
+  type ObjectCleanupJob,
+  type ObjectCleanupStatus,
   type Product,
   type ProductImage,
   type ProductImageType,
+  type ProductImageUpdate,
   type ProductInput,
   type ProductSkuInput,
+  type ProductSpecification,
   type ProductStatus,
   type StagedProductImage,
   type StockStatus,
@@ -43,6 +48,9 @@ import AppBrand from '../components/AppBrand.vue'
 
 type WorkspaceTab = 'products' | 'categories' | 'excel'
 type NoticeKind = 'success' | 'error'
+
+const POSTGRES_INTEGER_MIN = -(2 ** 31)
+const POSTGRES_INTEGER_MAX = 2 ** 31 - 1
 
 interface NoticeState {
   kind: NoticeKind
@@ -119,6 +127,10 @@ const imageType = ref<ProductImageType>('cover')
 const imageAltText = ref('')
 const imageSortOrder = ref('0')
 const imageUploading = ref(false)
+const imageEditingId = ref<number | null>(null)
+const imageUpdatingId = ref<number | null>(null)
+const imageEditAltText = ref('')
+const imageEditSortOrder = ref('0')
 
 function handleWorkspaceTabKeydown(event: KeyboardEvent) {
   const currentIndex = workspaceTabs.indexOf(activeTab.value)
@@ -131,7 +143,9 @@ function handleWorkspaceTabKeydown(event: KeyboardEvent) {
   if (event.key === 'End') nextIndex = workspaceTabs.length - 1
   if (nextIndex === null) return
   event.preventDefault()
-  activeTab.value = workspaceTabs[nextIndex]
+  const nextTab = workspaceTabs[nextIndex]
+  if (!nextTab) return
+  activeTab.value = nextTab
   requestAnimationFrame(() => document.getElementById(`catalog-tab-${activeTab.value}`)?.focus())
 }
 const imageDeletingId = ref<number | null>(null)
@@ -141,14 +155,25 @@ const downloadBusy = ref<'template' | 'export' | null>(null)
 const importFile = ref<File | null>(null)
 const importMode = ref<'dry-run' | 'commit' | null>(null)
 const importResult = ref<ImportResult | null>(null)
+const dryRunApprovedFile = ref<File | null>(null)
 const recentImportJobs = ref<ImportJob[]>([])
 const importHistoryLoading = ref(false)
+const selectedImportJob = ref<ImportJob | null>(null)
+const importJobLoadingId = ref<number | null>(null)
 const importInput = ref<HTMLInputElement | null>(null)
 const importIdempotencyKeys = reactive({ dryRun: '', commit: '' })
 const stagingProductCode = ref('')
 const stagingFile = ref<File | null>(null)
 const stagingUploading = ref(false)
-const stagedImage = ref<StagedProductImage | null>(null)
+const stagedImages = ref<StagedProductImage[]>([])
+const stagingDeletingKey = ref<string | null>(null)
+const stagingInput = ref<HTMLInputElement | null>(null)
+
+const cleanupStatus = ref<ObjectCleanupStatus | ''>('failed')
+const cleanupJobs = ref<ObjectCleanupJob[]>([])
+const cleanupJobsLoading = ref(false)
+const cleanupRetryingId = ref<number | null>(null)
+let cleanupRequestSequence = 0
 
 const categoryById = computed(() => new Map(categories.value.map((item) => [item.id, item])))
 const pageCount = computed(() => Math.max(1, Math.ceil(totalProducts.value / pageSize)))
@@ -159,6 +184,10 @@ const sortedImages = computed(() =>
   }),
 )
 const importSummary = computed(() => Object.entries(importResult.value?.summary ?? {}))
+const selectedImportSummary = computed(() => Object.entries(selectedImportJob.value?.summary ?? {}))
+const canCommitImport = computed(
+  () => importFile.value !== null && dryRunApprovedFile.value === importFile.value,
+)
 
 function importStatusLabel(job: ImportJob): string {
   const labels: Record<string, string> = {
@@ -178,6 +207,57 @@ async function loadImportJobs() {
     showNotice('error', messageFor(error, '最近导入任务加载失败。'))
   } finally {
     importHistoryLoading.value = false
+  }
+}
+
+async function loadImportJobDetail(job: ImportJob) {
+  if (importJobLoadingId.value !== null) return
+  importJobLoadingId.value = job.id
+  clearNotice()
+  try {
+    selectedImportJob.value = await catalogAdminApi.getImportJob(job.id)
+  } catch (error) {
+    showNotice('error', messageFor(error, '导入任务详情加载失败。'))
+  } finally {
+    importJobLoadingId.value = null
+  }
+}
+
+async function loadCleanupJobs() {
+  const requestSequence = ++cleanupRequestSequence
+  const requestedStatus = cleanupStatus.value
+  cleanupJobsLoading.value = true
+  try {
+    const jobs = await catalogAdminApi.listObjectCleanupJobs(requestedStatus || undefined)
+    if (requestSequence === cleanupRequestSequence && cleanupStatus.value === requestedStatus) {
+      cleanupJobs.value = jobs
+    }
+  } catch (error) {
+    if (requestSequence === cleanupRequestSequence) {
+      showNotice('error', messageFor(error, '对象清理任务加载失败。'))
+    }
+  } finally {
+    if (requestSequence === cleanupRequestSequence) cleanupJobsLoading.value = false
+  }
+}
+
+async function retryCleanupJob(job: ObjectCleanupJob) {
+  if (cleanupRetryingId.value !== null || job.status !== 'failed') return
+  cleanupRetryingId.value = job.id
+  clearNotice()
+  try {
+    const updated = await catalogAdminApi.retryObjectCleanupJob(job.id)
+    await loadCleanupJobs()
+    if (updated.status === 'completed') {
+      showNotice('success', `清理任务 #${job.id} 已完成。`)
+    } else {
+      showNotice('error', `清理任务 #${job.id} 未完成，当前状态：${updated.status}。`)
+    }
+  } catch (error) {
+    showNotice('error', messageFor(error, `清理任务 #${job.id} 重试失败。`))
+    await loadCleanupJobs()
+  } finally {
+    cleanupRetryingId.value = null
   }
 }
 
@@ -237,11 +317,19 @@ function nullable(value: string): string | null {
   return normalized ? normalized : null
 }
 
-function parseInteger(value: string, label: string, minimum = 0): number {
+function parseInteger(
+  value: string,
+  label: string,
+  minimum = 0,
+  maximum = Number.MAX_SAFE_INTEGER,
+): number {
   const normalized = value.trim()
   if (!/^-?\d+$/.test(normalized)) throw new Error(`${label}必须是整数。`)
   const parsed = Number(normalized)
-  if (!Number.isSafeInteger(parsed) || parsed < minimum) throw new Error(`${label}不能小于 ${minimum}。`)
+  if (!Number.isSafeInteger(parsed) || parsed < minimum) {
+    throw new Error(`${label}不能小于 ${minimum}。`)
+  }
+  if (parsed > maximum) throw new Error(`${label}不能大于 ${maximum}。`)
   return parsed
 }
 
@@ -282,7 +370,10 @@ function parseJsonArray(value: string, label: string): unknown[] {
 
 function buildProductInput(): ProductInput {
   const categoryId = parseInteger(productForm.category_id, '类目', 1)
-  const specifications = parseJsonArray(productForm.specifications_json, '规格 JSON')
+  const specifications = parseJsonArray(
+    productForm.specifications_json,
+    '规格 JSON',
+  ) as ProductSpecification[]
   const skus = parseJsonArray(productForm.skus_json, 'SKU JSON') as ProductSkuInput[]
 
   return {
@@ -300,7 +391,12 @@ function buildProductInput(): ProductInput {
       ? parseInteger(productForm.inventory_count, '库存数量')
       : null,
     featured: productForm.featured,
-    sort_order: parseInteger(productForm.sort_order, '排序值'),
+    sort_order: parseInteger(
+      productForm.sort_order,
+      '排序值',
+      POSTGRES_INTEGER_MIN,
+      POSTGRES_INTEGER_MAX,
+    ),
     tags: parseList(productForm.tags),
     selling_points: parseList(productForm.selling_points),
     description: productForm.description.trim(),
@@ -399,10 +495,14 @@ async function openEditProduct(product: Product) {
 
   try {
     const detail = await catalogAdminApi.getProduct(product.id)
-    productDetail.value = detail
-    fillProductForm(detail)
+    if (editorOpen.value && editingProductId.value === product.id) {
+      productDetail.value = detail
+      fillProductForm(detail)
+    }
   } catch (error) {
-    showNotice('error', messageFor(error, '商品详情加载失败。'))
+    if (editorOpen.value && editingProductId.value === product.id) {
+      showNotice('error', messageFor(error, '商品详情加载失败。'))
+    }
   }
 }
 
@@ -411,6 +511,7 @@ function closeProductEditor() {
   editingProductId.value = null
   productDetail.value = null
   imageFile.value = null
+  imageEditingId.value = null
   if (imageInput.value) imageInput.value.value = ''
 }
 
@@ -487,39 +588,115 @@ function selectImage(event: Event) {
 
 async function uploadImage() {
   if (!editingProductId.value || !imageFile.value || imageUploading.value) return
+  const productId = editingProductId.value
+  const selectedFile = imageFile.value
+  const selectedImageType = imageType.value
+  const selectedAltText = imageAltText.value.trim()
   imageUploading.value = true
   clearNotice()
   try {
-    productDetail.value = await catalogAdminApi.uploadProductImage(editingProductId.value, {
-      file: imageFile.value,
-      image_type: imageType.value,
-      alt_text: imageAltText.value.trim(),
-      sort_order: parseInteger(imageSortOrder.value, '图片排序值'),
+    const updatedProduct = await catalogAdminApi.uploadProductImage(productId, {
+      file: selectedFile,
+      image_type: selectedImageType,
+      alt_text: selectedAltText,
+      sort_order: parseInteger(
+        imageSortOrder.value,
+        '图片排序值',
+        POSTGRES_INTEGER_MIN,
+        POSTGRES_INTEGER_MAX,
+      ),
     })
-    imageFile.value = null
-    imageAltText.value = ''
-    imageSortOrder.value = '0'
-    if (imageInput.value) imageInput.value.value = ''
-    showNotice('success', '图片已上传。')
+    if (editorOpen.value && editingProductId.value === productId) {
+      productDetail.value = updatedProduct
+      imageFile.value = null
+      imageAltText.value = ''
+      imageSortOrder.value = '0'
+      if (imageInput.value) imageInput.value.value = ''
+      showNotice('success', '图片已上传。')
+    }
   } catch (error) {
-    showNotice('error', messageFor(error, '图片上传失败。'))
+    if (editorOpen.value && editingProductId.value === productId) {
+      showNotice('error', messageFor(error, '图片上传失败。'))
+    }
   } finally {
     imageUploading.value = false
   }
 }
 
+function beginImageEdit(image: ProductImage) {
+  imageEditingId.value = image.id
+  imageEditAltText.value = image.alt_text ?? ''
+  imageEditSortOrder.value = String(image.sort_order)
+}
+
+function cancelImageEdit() {
+  imageEditingId.value = null
+  imageEditAltText.value = ''
+  imageEditSortOrder.value = '0'
+}
+
+async function saveImageMetadata(image: ProductImage) {
+  if (!editingProductId.value || imageUpdatingId.value !== null) return
+  const productId = editingProductId.value
+  let input: ProductImageUpdate
+  try {
+    input = {
+      alt_text: nullable(imageEditAltText.value),
+      sort_order: parseInteger(
+        imageEditSortOrder.value,
+        '图片排序值',
+        POSTGRES_INTEGER_MIN,
+        POSTGRES_INTEGER_MAX,
+      ),
+    }
+  } catch (error) {
+    showNotice('error', messageFor(error, '请检查图片信息。'))
+    return
+  }
+
+  imageUpdatingId.value = image.id
+  clearNotice()
+  try {
+    const updatedProduct = await catalogAdminApi.updateProductImage(
+      productId,
+      image.id,
+      input,
+    )
+    if (editorOpen.value && editingProductId.value === productId) {
+      productDetail.value = updatedProduct
+      if (imageEditingId.value === image.id) cancelImageEdit()
+      showNotice('success', '图片说明与排序已更新。')
+    }
+  } catch (error) {
+    if (editorOpen.value && editingProductId.value === productId) {
+      showNotice('error', messageFor(error, '图片信息更新失败。'))
+    }
+  } finally {
+    imageUpdatingId.value = null
+  }
+}
+
 async function deleteImage(image: ProductImage) {
   if (!editingProductId.value || !window.confirm('确认删除这张商品图片？')) return
+  const productId = editingProductId.value
   imageDeletingId.value = image.id
   clearNotice()
   try {
-    productDetail.value = await catalogAdminApi.deleteProductImage(editingProductId.value, image.id)
-    showNotice('success', '图片已删除。')
+    const updatedProduct = await catalogAdminApi.deleteProductImage(productId, image.id)
+    if (editorOpen.value && editingProductId.value === productId) {
+      productDetail.value = updatedProduct
+      showNotice('success', '图片已删除。')
+    }
   } catch (error) {
     if (error instanceof ApiError && error.code === 'cleanup_pending') {
-      showNotice('error', '图片记录已删除，但对象清理待后台重试。')
-      productDetail.value = await catalogAdminApi.getProduct(editingProductId.value)
-    } else {
+      if (editorOpen.value && editingProductId.value === productId) {
+        showNotice('error', '图片记录已删除，但对象清理待后台重试。')
+        const refreshedProduct = await catalogAdminApi.getProduct(productId)
+        if (editorOpen.value && editingProductId.value === productId) {
+          productDetail.value = refreshedProduct
+        }
+      }
+    } else if (editorOpen.value && editingProductId.value === productId) {
       showNotice('error', messageFor(error, '图片删除失败。'))
     }
   } finally {
@@ -567,7 +744,12 @@ async function saveCategory() {
       parent_id: categoryForm.parent_id
         ? parseInteger(categoryForm.parent_id, '父类目', 1)
         : null,
-      sort_order: parseInteger(categoryForm.sort_order, '排序值'),
+      sort_order: parseInteger(
+        categoryForm.sort_order,
+        '排序值',
+        POSTGRES_INTEGER_MIN,
+        POSTGRES_INTEGER_MAX,
+      ),
       is_active: categoryForm.is_active,
     }
   } catch (error) {
@@ -641,6 +823,12 @@ function selectImportFile(event: Event) {
   const target = event.target as HTMLInputElement
   importFile.value = target.files?.[0] ?? null
   importResult.value = null
+  dryRunApprovedFile.value = null
+  selectedImportJob.value = null
+  resetImportIdempotencyKeys()
+}
+
+function resetImportIdempotencyKeys() {
   const selectionId =
     globalThis.crypto?.randomUUID?.() ??
     `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
@@ -653,18 +841,27 @@ function selectStagingFile(event: Event) {
   stagingFile.value = target.files?.[0] ?? null
 }
 
-async function cancelStagedImage() {
-  if (!stagedImage.value || stagingUploading.value) return
-  stagingUploading.value = true
+async function cancelStagedImage(image: StagedProductImage) {
+  if (stagingDeletingKey.value !== null) return
+  stagingDeletingKey.value = image.object_key
   clearNotice()
   try {
-    await catalogAdminApi.deleteStagedProductImage(stagedImage.value.object_key)
-    stagedImage.value = null
+    await catalogAdminApi.deleteStagedProductImage(image.object_key)
+    stagedImages.value = stagedImages.value.filter((item) => item.object_key !== image.object_key)
     showNotice('success', '暂存图片已清理。')
   } catch (error) {
     showNotice('error', messageFor(error, '暂存图片清理失败，后台已保留可重试任务。'))
   } finally {
-    stagingUploading.value = false
+    stagingDeletingKey.value = null
+  }
+}
+
+async function copyStagedImageKey(image: StagedProductImage) {
+  try {
+    await navigator.clipboard.writeText(image.object_key)
+    showNotice('success', '图片路径已复制。')
+  } catch {
+    showNotice('error', '自动复制失败，请在路径框中全选复制。')
   }
 }
 
@@ -674,14 +871,16 @@ async function uploadStagingImage() {
   stagingUploading.value = true
   clearNotice()
   try {
-    if (stagedImage.value) {
-      await catalogAdminApi.deleteStagedProductImage(stagedImage.value.object_key)
-      stagedImage.value = null
-    }
-    stagedImage.value = await catalogAdminApi.uploadStagedProductImage(
+    const stagedImage = await catalogAdminApi.uploadStagedProductImage(
       productCode,
       stagingFile.value,
     )
+    stagedImages.value = [
+      ...stagedImages.value.filter((item) => item.object_key !== stagedImage.object_key),
+      stagedImage,
+    ]
+    stagingFile.value = null
+    if (stagingInput.value) stagingInput.value.value = ''
     showNotice('success', '图片已安全暂存；请将下方路径填入 Images 工作表。')
   } catch (error) {
     showNotice('error', messageFor(error, '图片暂存失败。'))
@@ -692,12 +891,30 @@ async function uploadStagingImage() {
 
 async function runImport(dryRun: boolean) {
   if (!importFile.value || importMode.value) return
+  if (!dryRun && !canCommitImport.value) {
+    showNotice('error', '请先对当前工作簿执行并通过预检。')
+    return
+  }
+  const selectedFile = importFile.value
   importMode.value = dryRun ? 'dry-run' : 'commit'
   importResult.value = null
   clearNotice()
   try {
     const key = dryRun ? importIdempotencyKeys.dryRun : importIdempotencyKeys.commit
-    importResult.value = await catalogAdminApi.importProducts(importFile.value, dryRun, key)
+    importResult.value = await catalogAdminApi.importProducts(selectedFile, dryRun, key)
+    if (dryRun) {
+      dryRunApprovedFile.value = importResult.value.valid ? selectedFile : null
+      if (!importResult.value.valid) resetImportIdempotencyKeys()
+    } else if (importResult.value.valid) {
+      dryRunApprovedFile.value = null
+      const promotedKeys = new Set(importResult.value.promoted_staging_keys)
+      stagedImages.value = stagedImages.value.filter(
+        (image) => !promotedKeys.has(image.object_key),
+      )
+    } else {
+      dryRunApprovedFile.value = null
+      resetImportIdempotencyKeys()
+    }
     if (importResult.value.valid === false) {
       showNotice('error', dryRun ? '预检完成，请处理下方错误后重试。' : '导入未完成，请处理下方错误。')
     } else if (importResult.value.errors.length > 0) {
@@ -729,7 +946,7 @@ async function logout() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadCategories(), loadProducts(), loadImportJobs()])
+  await Promise.all([loadCategories(), loadProducts(), loadImportJobs(), loadCleanupJobs()])
 })
 </script>
 
@@ -1213,23 +1430,86 @@ onMounted(async () => {
                   <span class="image-type">{{ image.image_type }}</span>
                   <span>#{{ image.sort_order }}</span>
                 </div>
-                <p>{{ image.alt_text || '无替代文本' }}</p>
-                <button
-                  class="danger-text-button"
-                  type="button"
-                  :disabled="imageDeletingId === image.id"
-                  @click="deleteImage(image)"
-                >
-                  <LoaderCircle
-                    v-if="imageDeletingId === image.id"
-                    class="spin"
-                    :size="15"
-                  />
-                  <Trash2
-                    v-else
-                    :size="15"
-                  /> 删除
-                </button>
+                <template v-if="imageEditingId === image.id">
+                  <label class="admin-field image-card__field">
+                    <span>替代文本</span>
+                    <input
+                      v-model="imageEditAltText"
+                      :aria-label="`图片 ${image.id} 替代文本`"
+                    >
+                  </label>
+                  <label class="admin-field image-card__field">
+                    <span>排序值</span>
+                    <input
+                      v-model="imageEditSortOrder"
+                      inputmode="numeric"
+                      :aria-label="`图片 ${image.id} 排序值`"
+                    >
+                  </label>
+                  <div class="image-card__actions">
+                    <button
+                      class="filter-button image-card__button"
+                      type="button"
+                      :disabled="imageUpdatingId === image.id"
+                      :aria-label="`保存图片 ${image.id} 信息`"
+                      @click="saveImageMetadata(image)"
+                    >
+                      <LoaderCircle
+                        v-if="imageUpdatingId === image.id"
+                        class="spin"
+                        :size="15"
+                        aria-hidden="true"
+                      />
+                      <Save
+                        v-else
+                        :size="15"
+                        aria-hidden="true"
+                      /> 保存
+                    </button>
+                    <button
+                      class="text-button"
+                      type="button"
+                      @click="cancelImageEdit"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </template>
+                <template v-else>
+                  <p>{{ image.alt_text || '无替代文本' }}</p>
+                  <div class="image-card__actions">
+                    <button
+                      class="text-button"
+                      type="button"
+                      :aria-label="`编辑图片 ${image.id}`"
+                      @click="beginImageEdit(image)"
+                    >
+                      <Pencil
+                        :size="15"
+                        aria-hidden="true"
+                      /> 编辑
+                    </button>
+                    <button
+                      class="danger-text-button"
+                      type="button"
+                      :disabled="imageDeletingId === image.id"
+                      :aria-label="`删除图片 ${image.id}`"
+                      @click="deleteImage(image)"
+                    >
+                      <LoaderCircle
+                        v-if="imageDeletingId === image.id"
+                        class="spin"
+                        :size="15"
+                        aria-hidden="true"
+                      />
+                      <Trash2
+                        v-else
+                        :size="15"
+                        aria-hidden="true"
+                      /> 删除
+                    </button>
+                  </div>
+                </template>
               </article>
             </div>
             <p
@@ -1650,6 +1930,7 @@ onMounted(async () => {
             <label class="admin-field admin-field--file">
               <span>JPEG / PNG / WebP（最大 5 MiB）</span>
               <input
+                ref="stagingInput"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 @change="selectStagingFile"
@@ -1671,22 +1952,59 @@ onMounted(async () => {
                 :size="17"
               /> 生成图片路径
             </button>
-            <p
-              v-if="stagedImage"
-              class="selected-file"
+            <div
+              v-if="stagedImages.length"
+              class="staged-image-list"
             >
-              Images.object_key：<code>{{ stagedImage.object_key }}</code><br>
-              自动过期：{{ new Date(stagedImage.expires_at).toLocaleString('zh-CN') }}
-            </p>
-            <button
-              v-if="stagedImage"
-              class="text-button text-button--danger"
-              type="button"
-              :disabled="stagingUploading"
-              @click="cancelStagedImage"
-            >
-              <Trash2 :size="15" /> 清理暂存图片
-            </button>
+              <article
+                v-for="image in stagedImages"
+                :key="image.object_key"
+                class="staged-image-item"
+              >
+                <label class="admin-field">
+                  <span>Images.object_key</span>
+                  <input
+                    class="staged-image-path"
+                    readonly
+                    :value="image.object_key"
+                    :aria-label="`暂存图片路径 ${image.object_key}`"
+                  >
+                </label>
+                <p class="selected-file">
+                  自动过期：{{ new Date(image.expires_at).toLocaleString('zh-CN') }}
+                </p>
+                <div class="button-row staged-image-actions">
+                  <button
+                    class="text-button"
+                    type="button"
+                    @click="copyStagedImageKey(image)"
+                  >
+                    <Copy
+                      :size="15"
+                      aria-hidden="true"
+                    /> 复制路径
+                  </button>
+                  <button
+                    class="text-button text-button--danger"
+                    type="button"
+                    :disabled="stagingDeletingKey === image.object_key"
+                    @click="cancelStagedImage(image)"
+                  >
+                    <LoaderCircle
+                      v-if="stagingDeletingKey === image.object_key"
+                      class="spin"
+                      :size="15"
+                      aria-hidden="true"
+                    />
+                    <Trash2
+                      v-else
+                      :size="15"
+                      aria-hidden="true"
+                    /> 清理此图片
+                  </button>
+                </div>
+              </article>
+            </div>
           </article>
 
           <article class="excel-card">
@@ -1709,7 +2027,8 @@ onMounted(async () => {
               v-if="importFile"
               class="selected-file"
             >
-              已选择：{{ importFile.name }}
+              已选择：{{ importFile.name }} ·
+              {{ canCommitImport ? '预检已通过，可正式导入' : '正式导入前必须先通过预检' }}
             </p>
             <div class="button-row">
               <button
@@ -1731,7 +2050,7 @@ onMounted(async () => {
               <button
                 class="admin-primary-button"
                 type="button"
-                :disabled="!importFile || importMode !== null"
+                :disabled="!canCommitImport || importMode !== null"
                 @click="runImport(false)"
               >
                 <LoaderCircle
@@ -1819,7 +2138,7 @@ onMounted(async () => {
           </div>
           <div v-if="recentImportJobs.length" class="admin-table-wrap">
             <table class="admin-table">
-              <thead><tr><th>任务</th><th>文件</th><th>模式</th><th>状态</th><th>时间</th></tr></thead>
+              <thead><tr><th>任务</th><th>文件</th><th>模式</th><th>状态</th><th>时间</th><th>操作</th></tr></thead>
               <tbody>
                 <tr v-for="job in recentImportJobs" :key="job.id">
                   <td>#{{ job.id }}</td>
@@ -1827,11 +2146,180 @@ onMounted(async () => {
                   <td>{{ job.dry_run ? '预检' : '正式导入' }}</td>
                   <td>{{ importStatusLabel(job) }}</td>
                   <td>{{ new Date(job.created_at).toLocaleString('zh-CN') }}</td>
+                  <td>
+                    <button
+                      class="text-button"
+                      type="button"
+                      :disabled="importJobLoadingId !== null"
+                      @click="loadImportJobDetail(job)"
+                    >
+                      <LoaderCircle
+                        v-if="importJobLoadingId === job.id"
+                        class="spin"
+                        :size="15"
+                        aria-hidden="true"
+                      /> 查看详情
+                    </button>
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
           <p v-else class="empty-inline">暂无导入任务。</p>
+        </section>
+
+        <section
+          v-if="selectedImportJob"
+          class="import-result"
+          aria-labelledby="import-job-detail-title"
+        >
+          <div class="workspace-heading workspace-heading--compact">
+            <div>
+              <p class="eyebrow">
+                Import job detail
+              </p>
+              <h3 id="import-job-detail-title">
+                任务 #{{ selectedImportJob.id }} · {{ importStatusLabel(selectedImportJob) }}
+              </h3>
+            </div>
+            <button
+              class="text-button"
+              type="button"
+              @click="selectedImportJob = null"
+            >
+              关闭
+            </button>
+          </div>
+          <p class="section-help">
+            {{ selectedImportJob.original_filename }} ·
+            {{ selectedImportJob.dry_run ? '预检' : '正式导入' }} ·
+            完成时间：{{ selectedImportJob.completed_at ? new Date(selectedImportJob.completed_at).toLocaleString('zh-CN') : '尚未完成' }}
+          </p>
+          <dl
+            v-if="selectedImportSummary.length"
+            class="summary-grid"
+          >
+            <div
+              v-for="[label, value] in selectedImportSummary"
+              :key="label"
+            >
+              <dt>{{ label }}</dt><dd>{{ value }}</dd>
+            </div>
+          </dl>
+          <div
+            v-if="selectedImportJob.errors.length"
+            class="admin-table-wrap"
+          >
+            <table class="admin-table import-errors">
+              <thead><tr><th>工作表</th><th>行</th><th>字段</th><th>错误说明</th></tr></thead>
+              <tbody>
+                <tr
+                  v-for="(issue, index) in selectedImportJob.errors"
+                  :key="`${issue.sheet}-${issue.row}-${issue.field}-${index}`"
+                >
+                  <td>{{ issue.sheet ?? '—' }}</td>
+                  <td>{{ issue.row ?? '—' }}</td>
+                  <td>{{ issue.field ?? '—' }}</td>
+                  <td>{{ issue.message }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p
+            v-else
+            class="empty-inline empty-inline--success"
+          >
+            此任务未记录错误。
+          </p>
+        </section>
+
+        <section
+          class="import-result"
+          aria-labelledby="cleanup-jobs-title"
+        >
+          <div class="workspace-heading workspace-heading--compact">
+            <div>
+              <p class="eyebrow">
+                Object cleanup
+              </p>
+              <h3 id="cleanup-jobs-title">
+                对象清理任务
+              </h3>
+            </div>
+            <div class="cleanup-toolbar">
+              <label class="admin-field">
+                <span>状态</span>
+                <select
+                  v-model="cleanupStatus"
+                  aria-label="清理任务状态"
+                  @change="loadCleanupJobs"
+                >
+                  <option value="">全部</option>
+                  <option value="failed">失败</option>
+                  <option value="pending">待处理</option>
+                  <option value="processing">处理中</option>
+                  <option value="intent">意图已记录</option>
+                  <option value="completed">已完成</option>
+                </select>
+              </label>
+              <button
+                class="text-button"
+                type="button"
+                :disabled="cleanupJobsLoading"
+                @click="loadCleanupJobs"
+              >
+                <RefreshCw
+                  :class="{ spin: cleanupJobsLoading }"
+                  :size="15"
+                  aria-hidden="true"
+                /> 刷新
+              </button>
+            </div>
+          </div>
+          <div
+            v-if="cleanupJobs.length"
+            class="admin-table-wrap"
+          >
+            <table class="admin-table cleanup-jobs-table">
+              <thead><tr><th>任务</th><th>对象</th><th>原因</th><th>状态</th><th>尝试</th><th>最后错误</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr
+                  v-for="job in cleanupJobs"
+                  :key="job.id"
+                >
+                  <td>#{{ job.id }}</td>
+                  <td><code>{{ job.object_key }}</code></td>
+                  <td>{{ job.reason }}</td>
+                  <td>{{ job.status }}</td>
+                  <td>{{ job.attempts }}</td>
+                  <td>{{ job.last_error || '—' }}</td>
+                  <td>
+                    <button
+                      v-if="job.status === 'failed'"
+                      class="text-button"
+                      type="button"
+                      :disabled="cleanupRetryingId !== null"
+                      @click="retryCleanupJob(job)"
+                    >
+                      <LoaderCircle
+                        v-if="cleanupRetryingId === job.id"
+                        class="spin"
+                        :size="15"
+                        aria-hidden="true"
+                      /> 重试
+                    </button>
+                    <span v-else>—</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p
+            v-else
+            class="empty-inline"
+          >
+            当前筛选下没有对象清理任务。
+          </p>
         </section>
       </section>
     </main>

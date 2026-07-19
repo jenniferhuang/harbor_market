@@ -59,6 +59,12 @@ class ImportJob(Base):
         default=list,
         server_default=text("'[]'"),
     )
+    promoted_staging_keys: Mapped[list[str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import ImportJob, ObjectCleanupJob, ProductImage
@@ -12,6 +12,8 @@ from app.services.object_storage import ObjectStorage, ObjectStorageNotFoundErro
 logger = logging.getLogger(__name__)
 _INTENT_GRACE = timedelta(minutes=10)
 _PROCESSING_GRACE = timedelta(minutes=10)
+_RETRY_BACKOFF_BASE = timedelta(minutes=1)
+_RETRY_BACKOFF_MAX = timedelta(hours=1)
 IMPORT_LEASE = timedelta(hours=3)
 
 
@@ -49,8 +51,9 @@ def run_object_cleanup_jobs(
         job = session.get(ObjectCleanupJob, original.id)
         if job is None or job.status == "completed":
             continue
-        if job.status != "processing":
+        if job.status != "processing" or job.not_before is not None:
             job.status = "processing"
+            job.not_before = None
             session.commit()
         job.attempts += 1
         # A cleanup intent can become stale while another transaction finishes
@@ -61,6 +64,7 @@ def run_object_cleanup_jobs(
         if live_reference is not None:
             job.status = "completed"
             job.last_error = None
+            job.not_before = None
             job.completed_at = datetime.now(UTC)
             session.commit()
             continue
@@ -69,10 +73,12 @@ def run_object_cleanup_jobs(
         except ObjectStorageNotFoundError:
             job.status = "completed"
             job.last_error = None
+            job.not_before = None
             job.completed_at = datetime.now(UTC)
         except Exception as exc:
             job.status = "failed"
             job.last_error = f"{type(exc).__name__}: {exc}"[:1_000]
+            job.not_before = datetime.now(UTC) + _retry_backoff(job.attempts)
             failed.append(job)
             logger.warning(
                 "Object cleanup job %s failed for %s",
@@ -82,6 +88,7 @@ def run_object_cleanup_jobs(
         else:
             job.status = "completed"
             job.last_error = None
+            job.not_before = None
             job.completed_at = datetime.now(UTC)
         session.commit()
     return failed
@@ -92,17 +99,23 @@ def retryable_cleanup_jobs(
     *,
     job_id: int | None = None,
     limit: int = 100,
+    force_failed: bool = False,
 ) -> list[ObjectCleanupJob]:
     stale_intent_before = datetime.now(UTC) - _INTENT_GRACE
     stale_processing_before = datetime.now(UTC) - _PROCESSING_GRACE
     due_now = datetime.now(UTC)
+    due_condition = or_(
+        ObjectCleanupJob.not_before.is_(None),
+        ObjectCleanupJob.not_before <= due_now,
+    )
+    if force_failed:
+        if job_id is None:
+            raise ValueError("force_failed requires a specific cleanup job")
+        due_condition = or_(due_condition, ObjectCleanupJob.status == "failed")
     statement = (
         select(ObjectCleanupJob)
         .where(
-            or_(
-                ObjectCleanupJob.not_before.is_(None),
-                ObjectCleanupJob.not_before <= due_now,
-            ),
+            due_condition,
             or_(
                 ObjectCleanupJob.status.in_(("pending", "failed")),
                 and_(
@@ -120,14 +133,22 @@ def retryable_cleanup_jobs(
     if job_id is not None:
         statement = statement.where(ObjectCleanupJob.id == job_id)
     statement = statement.order_by(
+        func.coalesce(ObjectCleanupJob.not_before, ObjectCleanupJob.created_at),
         ObjectCleanupJob.created_at,
         ObjectCleanupJob.id,
     ).limit(limit)
     jobs = list(session.scalars(statement))
     for job in jobs:
         job.status = "processing"
+        job.not_before = None
     session.commit()
     return jobs
+
+
+def _retry_backoff(attempts: int) -> timedelta:
+    exponent = max(0, min(attempts - 1, 30))
+    delay_seconds = _RETRY_BACKOFF_BASE.total_seconds() * (2**exponent)
+    return timedelta(seconds=min(delay_seconds, _RETRY_BACKOFF_MAX.total_seconds()))
 
 
 def recover_stale_import_jobs(session: Session, *, limit: int = 100) -> list[ImportJob]:

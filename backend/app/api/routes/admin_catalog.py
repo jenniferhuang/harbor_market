@@ -333,6 +333,7 @@ def import_products(
             valid=job.status in {"validated", "completed"},
             summary={key: int(value) for key, value in job.summary.items()},
             errors=job.errors,
+            promoted_staging_keys=job.promoted_staging_keys,
         )
     )
 
@@ -573,7 +574,12 @@ def retry_object_cleanup_job(
         failed = run_object_cleanup_jobs(
             session,
             request.app.state.object_storage,
-            retryable_cleanup_jobs(session, job_id=job_id, limit=1),
+            retryable_cleanup_jobs(
+                session,
+                job_id=job_id,
+                limit=1,
+                force_failed=job.status == "failed",
+            ),
         )
         if failed:
             raise _cleanup_pending_error(failed)

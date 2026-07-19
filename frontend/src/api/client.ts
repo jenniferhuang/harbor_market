@@ -1,5 +1,6 @@
 export type ApiFieldErrors = Record<string, string>
 export const AUTH_REQUIRED_EVENT = 'harbor-market:auth-required'
+export const ADMIN_PERMISSION_CHANGED_EVENT = 'harbor-market:admin-permission-changed'
 
 interface ValidationIssue {
   loc?: Array<string | number>
@@ -116,9 +117,18 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-function notifyExpiredSession(path: `/api/${string}`, status: number): void {
-  if (status !== 401 || path.startsWith('/api/v1/auth/')) return
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT))
+function notifyAccessFailure(
+  path: `/api/${string}`,
+  status: number,
+  code: string | undefined,
+): void {
+  if (typeof window === 'undefined') return
+  if (status === 401 && !path.startsWith('/api/v1/auth/')) {
+    window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT))
+  }
+  if (status === 403 && code === 'admin_required' && path.startsWith('/api/v1/admin/')) {
+    window.dispatchEvent(new Event(ADMIN_PERMISSION_CHANGED_EVENT))
+  }
 }
 
 function requestHeaders(init: RequestInit): Headers {
@@ -150,13 +160,18 @@ export class ApiClient {
     return response
   }
 
-  private async throwResponseError(response: Response): Promise<never> {
+  private async throwResponseError(
+    response: Response,
+    path: `/api/${string}`,
+  ): Promise<never> {
     const payload = await readJson(response)
+    const code = extractErrorCode(payload)
+    notifyAccessFailure(path, response.status, code)
     throw new ApiError(
       response.status,
       extractSafeMessage(payload, response.status) ?? safeErrorMessage(response.status),
       extractFieldErrors(payload),
-      extractErrorCode(payload),
+      code,
     )
   }
 
@@ -165,12 +180,13 @@ export class ApiClient {
 
     const payload = await readJson(response)
     if (!response.ok) {
-      notifyExpiredSession(path, response.status)
+      const code = extractErrorCode(payload)
+      notifyAccessFailure(path, response.status, code)
       throw new ApiError(
         response.status,
         extractSafeMessage(payload, response.status) ?? safeErrorMessage(response.status),
         extractFieldErrors(payload),
-        extractErrorCode(payload),
+        code,
       )
     }
 
@@ -206,8 +222,7 @@ export class ApiClient {
   async getBlob(path: `/api/${string}`): Promise<Blob> {
     const response = await this.fetch(path, { method: 'GET' })
     if (!response.ok) {
-      notifyExpiredSession(path, response.status)
-      return this.throwResponseError(response)
+      return this.throwResponseError(response, path)
     }
     return response.blob()
   }

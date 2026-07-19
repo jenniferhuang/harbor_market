@@ -6,6 +6,7 @@ import logging
 import re
 import zipfile
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -77,6 +78,19 @@ SKU_HEADERS = [
 ]
 IMAGE_HEADERS = ["product_code", "image_type", "object_key", "alt_text", "sort_order"]
 
+_PRODUCT_VALIDATION_FIELD_ALIASES = {
+    "base_price_cents": "base_price_yuan",
+    "market_price_cents": "market_price_yuan",
+    "category_id": "category_code",
+    "specifications": "specifications_json",
+    "skus": "is_default",
+}
+_SKU_VALIDATION_FIELD_ALIASES = {
+    "price_cents": "price_yuan",
+    "market_price_cents": "market_price_yuan",
+    "attributes": "attributes_json",
+}
+
 _TEXT_HEADERS_BY_SHEET = {
     "Products": frozenset({"product_code", "category_code"}),
     "SKUs": frozenset({"product_code", "sku_code"}),
@@ -115,6 +129,18 @@ logger = logging.getLogger(__name__)
 
 class CatalogImportStorageError(RuntimeError):
     """Signals a retryable object-storage failure during catalog import."""
+
+
+class WorkbookFieldError(ValueError):
+    def __init__(self, field: str, message: str) -> None:
+        super().__init__(message)
+        self.field = field
+
+
+class SkuWorkbookFieldError(WorkbookFieldError):
+    def __init__(self, sku_code: str, field: str, message: str) -> None:
+        super().__init__(field, message)
+        self.sku_code = sku_code
 
 
 @dataclass(slots=True)
@@ -383,6 +409,7 @@ def import_catalog(
         if job is None:
             raise RuntimeError("Import job disappeared during transaction")
         job.status = "completed"
+        job.promoted_staging_keys = [item.source_key for item in promoted_images]
         job.summary = {
             **summary,
             "cleanup_queued": len(staging_cleanup_jobs),
@@ -429,6 +456,12 @@ def _resolve_idempotent_import(
             409,
             "idempotency_key_conflict",
             "The idempotency key was already used for a different import",
+        )
+    if job.status == "pending":
+        raise ApiError(
+            409,
+            "import_in_progress",
+            "The original import request is still in progress; retry with the same key later",
         )
     return job
 
@@ -675,15 +708,31 @@ def _parse_products(
             errors.append(_error("Products", row_number, "category_code", "类目编码不存在"))
             continue
         try:
-            base_price = _yuan_to_cents(row.get("base_price_yuan"), required=True)
-            market_price = _yuan_to_cents(row.get("market_price_yuan"), required=False)
+            base_price = _parse_excel_field(
+                "base_price_yuan",
+                _yuan_to_cents,
+                row.get("base_price_yuan"),
+                required=True,
+            )
+            market_price = _parse_excel_field(
+                "market_price_yuan",
+                _yuan_to_cents,
+                row.get("market_price_yuan"),
+                required=False,
+            )
+            inventory_count = _parse_excel_field(
+                "inventory_count",
+                _integer,
+                row.get("inventory_count"),
+                default=None,
+            )
             product_skus = _final_skus(
                 existing_products.get(code),
                 sku_inputs.get(code, []),
                 default_code=f"{code}-DEFAULT",
                 default_price_cents=base_price,
                 default_market_price_cents=market_price,
-                default_stock_quantity=_integer(row.get("inventory_count"), default=0) or 0,
+                default_stock_quantity=inventory_count or 0,
             )
             product = ProductCreate(
                 product_code=code,
@@ -695,19 +744,61 @@ def _parse_products(
                 market_price_cents=market_price,
                 unit=_text(row.get("unit")) or "件",
                 stock_status=_text(row.get("stock_status")) or "in_stock",
-                inventory_count=_integer(row.get("inventory_count"), default=None),
-                featured=_boolean(row.get("featured"), default=False),
-                sort_order=_integer(row.get("sort_order"), default=0) or 0,
-                tags=_text_list(row.get("tags")),
-                selling_points=_text_list(row.get("selling_points")),
+                inventory_count=inventory_count,
+                featured=_parse_excel_field(
+                    "featured",
+                    _boolean,
+                    row.get("featured"),
+                    default=False,
+                ),
+                sort_order=(
+                    _parse_excel_field(
+                        "sort_order",
+                        _integer,
+                        row.get("sort_order"),
+                        default=0,
+                    )
+                    or 0
+                ),
+                tags=_parse_excel_field("tags", _text_list, row.get("tags")),
+                selling_points=_parse_excel_field(
+                    "selling_points",
+                    _text_list,
+                    row.get("selling_points"),
+                ),
                 description=_text(row.get("description")),
                 ingredients=_optional_text(row.get("ingredients")),
                 allergen_info=_optional_text(row.get("allergen_info")),
-                specifications=_json_value(row.get("specifications_json"), expected=list),
+                specifications=_parse_excel_field(
+                    "specifications_json",
+                    _json_value,
+                    row.get("specifications_json"),
+                    expected=list,
+                ),
                 skus=product_skus,
             )
-        except (ValueError, ValidationError) as exc:
-            errors.append(_error("Products", row_number, "row", _validation_message(exc)))
+        except SkuWorkbookFieldError as exc:
+            errors.append(
+                _error(
+                    "SKUs",
+                    sku_source_rows.get(exc.sku_code, 0),
+                    exc.field,
+                    str(exc),
+                )
+            )
+            continue
+        except WorkbookFieldError as exc:
+            errors.append(_error("Products", row_number, exc.field, str(exc)))
+            continue
+        except ValidationError as exc:
+            errors.append(
+                _error(
+                    "Products",
+                    row_number,
+                    _validation_error_field(exc, _PRODUCT_VALIDATION_FIELD_ALIASES),
+                    _validation_message(exc),
+                )
+            )
             continue
         if product.status == "published" and not category.is_active:
             errors.append(
@@ -728,6 +819,14 @@ def _parse_products(
         if existing is None:
             continue
         try:
+            merged_skus = _final_skus(
+                existing,
+                incoming_skus,
+                default_code=f"{code}-DEFAULT",
+                default_price_cents=existing.base_price_cents,
+                default_market_price_cents=existing.market_price_cents,
+                default_stock_quantity=existing.inventory_count or 0,
+            )
             products.append(
                 ProductCreate(
                     product_code=existing.product_code,
@@ -749,25 +848,34 @@ def _parse_products(
                     ingredients=existing.ingredients,
                     allergen_info=existing.allergen_info,
                     sort_order=existing.sort_order,
-                    skus=_final_skus(
-                        existing,
-                        incoming_skus,
-                        default_code=f"{code}-DEFAULT",
-                        default_price_cents=existing.base_price_cents,
-                        default_market_price_cents=existing.market_price_cents,
-                        default_stock_quantity=existing.inventory_count or 0,
-                    ),
+                    skus=merged_skus,
                 )
             )
-        except (ValueError, ValidationError) as exc:
+        except SkuWorkbookFieldError as exc:
             errors.append(
                 _error(
                     "SKUs",
-                    next(
-                        (sku_source_rows.get(sku.sku_code, 0) for sku in incoming_skus),
-                        0,
-                    ),
-                    "row",
+                    sku_source_rows.get(exc.sku_code, 0),
+                    exc.field,
+                    str(exc),
+                )
+            )
+        except WorkbookFieldError as exc:
+            source_row = next(
+                (sku_source_rows.get(sku.sku_code, 0) for sku in incoming_skus),
+                0,
+            )
+            errors.append(_error("SKUs", source_row, exc.field, str(exc)))
+        except ValidationError as exc:
+            source_row = next(
+                (sku_source_rows.get(sku.sku_code, 0) for sku in incoming_skus),
+                0,
+            )
+            errors.append(
+                _error(
+                    "SKUs",
+                    source_row,
+                    _validation_error_field(exc, _SKU_VALIDATION_FIELD_ALIASES),
                     _validation_message(exc),
                 )
             )
@@ -797,16 +905,67 @@ def _parse_skus(
             sku = ProductSkuInput(
                 sku_code=sku_code,
                 name=_text(row.get("name")),
-                price_cents=_yuan_to_cents(row.get("price_yuan"), required=True),
-                market_price_cents=_yuan_to_cents(row.get("market_price_yuan"), required=False),
-                stock_quantity=_integer(row.get("stock_quantity"), default=0) or 0,
-                attributes=_json_value(row.get("attributes_json"), expected=dict),
-                is_default=_boolean(row.get("is_default"), default=False),
-                is_active=_boolean(row.get("is_active"), default=True),
-                sort_order=_integer(row.get("sort_order"), default=0) or 0,
+                price_cents=_parse_excel_field(
+                    "price_yuan",
+                    _yuan_to_cents,
+                    row.get("price_yuan"),
+                    required=True,
+                ),
+                market_price_cents=_parse_excel_field(
+                    "market_price_yuan",
+                    _yuan_to_cents,
+                    row.get("market_price_yuan"),
+                    required=False,
+                ),
+                stock_quantity=(
+                    _parse_excel_field(
+                        "stock_quantity",
+                        _integer,
+                        row.get("stock_quantity"),
+                        default=0,
+                    )
+                    or 0
+                ),
+                attributes=_parse_excel_field(
+                    "attributes_json",
+                    _json_value,
+                    row.get("attributes_json"),
+                    expected=dict,
+                ),
+                is_default=_parse_excel_field(
+                    "is_default",
+                    _boolean,
+                    row.get("is_default"),
+                    default=False,
+                ),
+                is_active=_parse_excel_field(
+                    "is_active",
+                    _boolean,
+                    row.get("is_active"),
+                    default=True,
+                ),
+                sort_order=(
+                    _parse_excel_field(
+                        "sort_order",
+                        _integer,
+                        row.get("sort_order"),
+                        default=0,
+                    )
+                    or 0
+                ),
             )
-        except (ValueError, ValidationError) as exc:
-            errors.append(_error("SKUs", row_number, "row", _validation_message(exc)))
+        except WorkbookFieldError as exc:
+            errors.append(_error("SKUs", row_number, exc.field, str(exc)))
+            continue
+        except ValidationError as exc:
+            errors.append(
+                _error(
+                    "SKUs",
+                    row_number,
+                    _validation_error_field(exc, _SKU_VALIDATION_FIELD_ALIASES),
+                    _validation_message(exc),
+                )
+            )
             continue
         by_product[product_code].append(sku)
         source_rows[sku.sku_code] = row_number
@@ -841,7 +1000,11 @@ def _final_skus(
 
     incoming_defaults = [sku for sku in incoming_skus if sku.is_active and sku.is_default]
     if len(incoming_defaults) > 1:
-        raise ValueError("每个商品必须且只能有一个启用的默认 SKU")
+        raise SkuWorkbookFieldError(
+            incoming_defaults[1].sku_code,
+            "is_default",
+            "每个商品必须且只能有一个启用的默认 SKU",
+        )
     if incoming_defaults:
         for sku in merged.values():
             sku.is_default = False
@@ -860,12 +1023,26 @@ def _final_skus(
 
     active = [sku for sku in merged.values() if sku.is_active]
     if not active:
-        raise ValueError("商品至少需要一个启用的 SKU")
+        source = incoming_skus[-1] if incoming_skus else next(iter(merged.values()))
+        raise SkuWorkbookFieldError(
+            source.sku_code,
+            "is_active",
+            "商品至少需要一个启用的 SKU",
+        )
     defaults = [sku for sku in active if sku.is_default]
     if not defaults:
         active[0].is_default = True
     elif len(defaults) > 1:
-        raise ValueError("每个商品必须且只能有一个启用的默认 SKU")
+        incoming_codes = {sku.sku_code for sku in incoming_skus}
+        source = next(
+            (sku for sku in reversed(defaults) if sku.sku_code in incoming_codes),
+            defaults[1],
+        )
+        raise SkuWorkbookFieldError(
+            source.sku_code,
+            "is_default",
+            "每个商品必须且只能有一个启用的默认 SKU",
+        )
     return sorted(merged.values(), key=lambda sku: (sku.sort_order, sku.sku_code))
 
 
@@ -1604,6 +1781,42 @@ def _optional_text(value: Any) -> str | None:
 
 def _excel_safe(value: Any) -> Any:
     return value
+
+
+def _parse_excel_field[T](
+    field: str,
+    operation: Callable[..., T],
+    /,
+    *args: Any,
+    **kwargs: Any,
+) -> T:
+    try:
+        return operation(*args, **kwargs)
+    except ValidationError:
+        raise
+    except ValueError as exc:
+        raise WorkbookFieldError(field, str(exc)) from exc
+
+
+def _validation_error_field(error: ValidationError, aliases: dict[str, str]) -> str:
+    first = error.errors()[0]
+    root_field = next(
+        (str(part) for part in first.get("loc", ()) if isinstance(part, str)),
+        "row",
+    )
+    if root_field in {"row", "__root__"}:
+        message = str(first.get("msg", ""))
+        referenced_field = next(
+            (
+                field
+                for field in sorted(aliases, key=len, reverse=True)
+                if field in message
+            ),
+            None,
+        )
+        if referenced_field is not None:
+            return aliases[referenced_field]
+    return aliases.get(root_field, root_field)
 
 
 def _validation_message(error: ValueError | ValidationError) -> str:

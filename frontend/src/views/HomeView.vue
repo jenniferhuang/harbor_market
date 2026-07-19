@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { Check, LoaderCircle, LogOut, PackageSearch, UserRound } from 'lucide-vue-next'
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '../api/client'
 import { useAuth } from '../auth/useAuth'
 import AppBrand from '../components/AppBrand.vue'
 
 const auth = useAuth()
+const route = useRoute()
 const router = useRouter()
 const isLoggingOut = ref(false)
 const logoutError = ref('')
+const accessChanged = computed(() => route.query.access_changed === '1')
 
 async function logout() {
   if (isLoggingOut.value) return
@@ -103,6 +105,14 @@ async function logout() {
           </span>
           <span aria-hidden="true">→</span>
         </RouterLink>
+
+        <p
+          v-if="accessChanged"
+          class="notice notice--error home-page__error"
+          role="alert"
+        >
+          Your administrator access has changed. The management workspace was closed.
+        </p>
 
         <p
           v-if="logoutError"

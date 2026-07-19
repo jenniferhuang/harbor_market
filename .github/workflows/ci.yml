@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend / Python 3.12 / PostgreSQL 16
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: harbor_market_test
+          POSTGRES_USER: harbor_market
+          POSTGRES_PASSWORD: ci-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U harbor_market -d harbor_market_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: >-
+        postgresql+psycopg://harbor_market:ci-postgres-password@127.0.0.1:5432/harbor_market_test
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8.3.2
+        with:
+          version: "0.11.28"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install locked backend dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Lint backend
+        run: uv run --frozen ruff check .
+
+      - name: Run full backend test suite
+        run: uv run --frozen pytest
+
+      - name: Ensure checks did not modify tracked files
+        working-directory: .
+        run: |
+          git diff --check
+          test -z "$(git status --porcelain)"
+
+  frontend:
+    name: Frontend / Node 22
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install locked frontend dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Strictly type-check frontend sources
+        run: npm run typecheck
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Ensure checks did not modify tracked files
+        working-directory: .
+        run: |
+          git diff --check
+          test -z "$(git status --porcelain)"
+
+  repository:
+    name: Compose and deployment checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check committed whitespace
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$BASE_SHA" ]] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            git diff --check "$BASE_SHA" HEAD
+          else
+            git show --check --format= HEAD
+          fi
+
+      - name: Validate Compose configuration
+        env:
+          COMPOSE_PROJECT_NAME: harbor-market-ci
+          ENVIRONMENT: production
+          APP_PORT: "8080"
+          POSTGRES_DB: harbor_market_test
+          POSTGRES_USER: harbor_market
+          POSTGRES_PASSWORD: ci-postgres-password
+          AUTH_SECRET_KEY: ci-auth-secret-key-with-more-than-32-characters
+          AUTH_COOKIE_SECURE: "true"
+          MINIO_ROOT_USER: harbor-market-ci-root
+          MINIO_ROOT_PASSWORD: ci-minio-root-password-with-more-than-32-characters
+          STORAGE_BACKEND: minio
+          STORAGE_ACCESS_KEY: harbor-market-ci-app
+          STORAGE_SECRET_KEY: ci-minio-app-secret-with-more-than-32-characters
+          STORAGE_BUCKET: harbor-market-ci-products
+          PAYMENT_MODE: disabled
+          PAYMENT_MOCK_CONTROLS_ENABLED: "false"
+          ALLOWED_HOSTS: localhost,127.0.0.1,app.example.test
+        run: docker compose config --quiet
+
+      - name: Check shell syntax
+        run: bash -n deploy/*.sh deploy/tests/*.sh deploy/tests/fixtures/*.sh tests/e2e/*.sh
+
+      - name: Test deployment operation locking
+        run: bash deploy/tests/test-operation-lock.sh
+
+      - name: Test deployment worker verification
+        run: bash deploy/tests/test-verify-worker-health.sh
+
+      - name: Ensure checks did not modify tracked files
+        run: |
+          git diff --check
+          test -z "$(git status --porcelain)"

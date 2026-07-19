@@ -10,7 +10,7 @@ from contextlib import ExitStack
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
-from threading import Barrier, Lock
+from threading import Barrier, Event, Lock
 from types import SimpleNamespace
 from typing import BinaryIO
 
@@ -232,6 +232,97 @@ def test_concurrent_staging_uploads_stop_at_per_product_quota(
     assert len(storage.put_calls) == 1
 
 
+@pytest.mark.parametrize(
+    ("reference_kind", "expected_error_code"),
+    [
+        ("child", "category_code_conflict"),
+        ("product", "product_code_conflict"),
+    ],
+)
+def test_category_delete_serializes_concurrent_reference_insertion(
+    postgres_database: tuple[Engine, str],
+    monkeypatch: pytest.MonkeyPatch,
+    reference_kind: str,
+    expected_error_code: str,
+) -> None:
+    engine, database_url = postgres_database
+    admin_id, category_id = _seed_admin_and_category(engine)
+    storage = _ConcurrentObjectStorage()
+    app = _test_app(engine, database_url, storage, admin_id)
+    delete_has_lock = Event()
+    allow_delete = Event()
+    reference_commit_started = Event()
+    reference_finished = Event()
+    original_lock = admin_catalog.catalog._get_category_for_update
+    original_commit = admin_catalog.catalog._commit
+
+    def pause_after_category_lock(session: Session, locked_category_id: int) -> Category:
+        category = original_lock(session, locked_category_id)
+        delete_has_lock.set()
+        if not allow_delete.wait(timeout=10):
+            raise TimeoutError("category delete test did not release its lock")
+        return category
+
+    def observe_reference_commit(session: Session, code: str, message: str) -> None:
+        reference_commit_started.set()
+        original_commit(session, code, message)
+
+    monkeypatch.setattr(
+        admin_catalog.catalog,
+        "_get_category_for_update",
+        pause_after_category_lock,
+    )
+    monkeypatch.setattr(admin_catalog.catalog, "_commit", observe_reference_commit)
+
+    def create_reference(client: TestClient) -> Response:
+        if reference_kind == "child":
+            response = client.post(
+                "/api/v1/admin/categories",
+                json={
+                    "code": "DELETE-RACE-CHILD",
+                    "name": "并发子类目",
+                    "parent_id": category_id,
+                },
+            )
+        else:
+            response = client.post(
+                "/api/v1/admin/products",
+                json={
+                    "product_code": "DELETE-RACE-PRODUCT",
+                    "name": "并发商品",
+                    "category_id": category_id,
+                    "base_price_cents": 100,
+                },
+            )
+        reference_finished.set()
+        return response
+
+    try:
+        with ExitStack() as stack:
+            clients = [stack.enter_context(TestClient(app)) for _ in range(2)]
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                delete_future = executor.submit(
+                    clients[0].delete,
+                    f"/api/v1/admin/categories/{category_id}",
+                )
+                assert delete_has_lock.wait(timeout=10)
+                create_future = executor.submit(create_reference, clients[1])
+                assert reference_commit_started.wait(timeout=10)
+                assert not reference_finished.wait(timeout=0.25)
+                allow_delete.set()
+                delete_response = delete_future.result(timeout=20)
+                create_response = create_future.result(timeout=20)
+    finally:
+        allow_delete.set()
+
+    assert delete_response.status_code == 204
+    assert create_response.status_code == 409
+    assert create_response.json()["error"]["code"] == expected_error_code
+    with Session(engine) as session:
+        assert session.get(Category, category_id) is None
+        assert session.scalar(sa.select(Product.id).limit(1)) is None
+
+
 def _truncate_application_tables(engine: Engine) -> None:
     with engine.begin() as connection:
         connection.execute(
@@ -283,6 +374,19 @@ def _seed_admin_and_product(engine: Engine, *, gallery_count: int = 0) -> tuple[
         session.add_all([admin, product])
         session.commit()
         return admin.id, product.id
+
+
+def _seed_admin_and_category(engine: Engine) -> tuple[int, int]:
+    with Session(engine, expire_on_commit=False) as session:
+        admin = User(
+            username="postgres-category-delete-admin",
+            password_hash="$argon2id$review",
+            is_admin=True,
+        )
+        category = Category(code="DELETE-RACE", name="类目删除竞态")
+        session.add_all([admin, category])
+        session.commit()
+        return admin.id, category.id
 
 
 def _seed_staging_jobs(
