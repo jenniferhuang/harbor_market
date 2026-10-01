@@ -1,0 +1,104 @@
+<view class="page-shell home-page" aria-role="main">
+  <view class="hero" aria-label="Harbor Market 商品目录">
+    <text class="hero__eyebrow">HARBOR MARKET</text>
+    <text id="home-title" class="page-heading">选一份今日好物</text>
+    <text class="page-intro">浏览已上架商品。价格和库存以服务端目录为准。</text>
+  </view>
+
+  <view class="search surface" aria-role="search" aria-label="搜索商品">
+    <input
+      class="search__input"
+      value="{{queryInput}}"
+      placeholder="搜索商品名称或编码"
+      confirm-type="search"
+      maxlength="160"
+      bindinput="onQueryInput"
+      bindconfirm="applySearch"
+      aria-label="商品搜索关键词"
+    />
+    <button
+      wx:if="{{queryInput || appliedQuery}}"
+      class="search__clear"
+      bindtap="clearSearch"
+      aria-label="清空搜索"
+    >清空</button>
+    <button class="search__submit" bindtap="applySearch" aria-label="搜索商品">
+      搜索
+    </button>
+  </view>
+
+  <scroll-view class="category-strip" scroll-x="true" enhanced="true" show-scrollbar="false">
+    <view class="category-strip__inner" aria-role="group" aria-label="商品类目筛选">
+      <button
+        class="category-chip {{selectedCategory == '' ? 'category-chip--active' : ''}}"
+        data-code=""
+        bindtap="selectCategory"
+        aria-label="查看全部类目"
+      >全部</button>
+      <button
+        wx:for="{{categories}}"
+        wx:key="code"
+        class="category-chip {{selectedCategory == item.code ? 'category-chip--active' : ''}}"
+        data-code="{{item.code}}"
+        bindtap="selectCategory"
+        aria-label="按 {{item.name}} 筛选"
+      >{{item.name}}</button>
+    </view>
+  </scroll-view>
+
+  <view wx:if="{{loading && !products.length}}" class="surface status-panel" aria-role="status">
+    <text class="status-panel__title">正在加载商品…</text>
+    <text class="status-panel__message">请稍候</text>
+  </view>
+
+  <view wx:elif="{{errorMessage && !products.length}}" class="surface status-panel" aria-role="alert">
+    <text class="status-panel__title">目录加载失败</text>
+    <text class="status-panel__message status-panel__message--error">{{errorMessage}}</text>
+    <button class="secondary-button status-panel__action" bindtap="retry">重新加载</button>
+  </view>
+
+  <view wx:elif="{{!products.length}}" class="surface status-panel">
+    <text class="status-panel__title">没有找到商品</text>
+    <text class="status-panel__message">可以尝试其他关键词或类目。</text>
+    <button
+      wx:if="{{appliedQuery || selectedCategory}}"
+      class="secondary-button status-panel__action"
+      bindtap="resetFilters"
+    >清除筛选</button>
+  </view>
+
+  <view wx:else>
+    <view class="results-heading">
+      <text class="results-heading__count">共 {{total}} 件商品</text>
+      <text wx:if="{{loading}}" class="results-heading__loading" aria-role="status">正在更新…</text>
+    </view>
+    <view class="product-grid">
+      <product-card
+        wx:for="{{products}}"
+        wx:key="productCode"
+        item="{{item}}"
+        bind:select="openProduct"
+      />
+    </view>
+
+    <view wx:if="{{errorMessage}}" class="inline-error" aria-role="alert">
+      <text>{{errorMessage}}</text>
+    </view>
+
+    <view class="pagination" aria-role="group" aria-label="商品分页">
+      <button
+        class="secondary-button pagination__button"
+        disabled="{{loading || page == 1}}"
+        bindtap="previousPage"
+        aria-label="上一页"
+      >上一页</button>
+      <text class="pagination__label">第 {{page}} / {{totalPages}} 页</text>
+      <button
+        class="secondary-button pagination__button"
+        disabled="{{loading || page >= totalPages}}"
+        bindtap="nextPage"
+        aria-label="下一页"
+      >下一页</button>
+    </view>
+  </view>
+</view>

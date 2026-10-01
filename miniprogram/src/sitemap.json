@@ -1,0 +1,9 @@
+{
+  "desc": "Harbor Market Mini Program pages",
+  "rules": [
+    {
+      "action": "allow",
+      "page": "*"
+    }
+  ]
+}

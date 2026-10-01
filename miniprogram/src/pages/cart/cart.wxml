@@ -1,0 +1,96 @@
+<view class="page-shell cart-page" aria-role="main">
+  <view class="cart-heading">
+    <view>
+      <text class="page-heading">购物车</text>
+      <text class="page-intro">商品保存在当前设备，尚未创建订单。</text>
+    </view>
+    <button
+      wx:if="{{items.length}}"
+      class="cart-heading__clear"
+      bindtap="clearAll"
+      aria-label="清空购物车"
+    >清空</button>
+  </view>
+
+  <view wx:if="{{errorMessage}}" class="surface status-panel" aria-role="alert">
+    <text class="status-panel__title">购物车读取失败</text>
+    <text class="status-panel__message status-panel__message--error">{{errorMessage}}</text>
+    <button class="secondary-button status-panel__action" bindtap="refreshCart">重新读取</button>
+  </view>
+
+  <view wx:elif="{{!items.length}}" class="surface status-panel">
+    <text class="status-panel__title">购物车还是空的</text>
+    <text class="status-panel__message">去商品目录挑选一些商品吧。</text>
+    <button class="primary-button status-panel__action" bindtap="continueShopping">去选购</button>
+  </view>
+
+  <block wx:else>
+    <view class="cart-lines">
+      <view wx:for="{{items}}" wx:key="key" class="surface cart-line">
+        <image
+          wx:if="{{item.coverUrl}}"
+          class="cart-line__image"
+          src="{{item.coverUrl}}"
+          mode="aspectFill"
+          aria-label="{{item.productName}} 商品图片"
+        />
+        <view wx:else class="cart-line__image cart-line__placeholder" aria-hidden="true">Harbor</view>
+
+        <view class="cart-line__content">
+          <view class="cart-line__top">
+            <view class="cart-line__identity">
+              <text class="cart-line__name">{{item.productName}}</text>
+              <text wx:if="{{item.skuName}}" class="cart-line__sku">{{item.skuName}}</text>
+            </view>
+            <button
+              class="cart-line__remove"
+              data-key="{{item.key}}"
+              bindtap="removeLine"
+              aria-label="移除 {{item.productName}}"
+            >移除</button>
+          </view>
+
+          <text wx:if="{{item.selectionSummary}}" class="cart-line__selection">{{item.selectionSummary}}</text>
+          <text wx:if="{{item.stockLabel}}" class="cart-line__stock">{{item.stockLabel}}</text>
+
+          <view class="cart-line__footer">
+            <view>
+              <text class="price cart-line__price">{{item.displayLineTotal}}</text>
+              <text class="cart-line__unit">{{item.displayUnitPrice}} / 件</text>
+            </view>
+            <quantity-stepper
+              data-key="{{item.key}}"
+              value="{{item.quantity}}"
+              min="{{1}}"
+              max="{{item.maxQuantity}}"
+              bind:change="changeQuantity"
+            />
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="surface cart-summary" aria-label="购物车汇总">
+      <text id="cart-summary-title" class="section-title">购物车汇总</text>
+      <view class="cart-summary__row">
+        <text>商品种类</text>
+        <text>{{summary.lineCount}}</text>
+      </view>
+      <view class="cart-summary__row">
+        <text>商品数量</text>
+        <text>{{summary.totalQuantity}}</text>
+      </view>
+      <view class="cart-summary__row cart-summary__row--total">
+        <text>合计</text>
+        <text class="price">{{displayTotal}}</text>
+      </view>
+      <text class="cart-summary__notice">
+        这里是目录价格估算，不含运费，也不是服务端订单应付金额。
+      </text>
+      <button class="checkout-unavailable" bindtap="explainCheckout">
+        订单结算（尚未开放）
+      </button>
+      <button class="secondary-button continue-button" bindtap="continueShopping">继续选购</button>
+    </view>
+  </block>
+</view>

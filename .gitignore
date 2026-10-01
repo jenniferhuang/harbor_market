@@ -18,6 +18,7 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+miniprogram/project.private.config.json
 
 # Runtime and test artifacts
 .data/

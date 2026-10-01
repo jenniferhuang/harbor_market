@@ -1,0 +1,132 @@
+page {
+  min-height: 100%;
+  background: #f4f7f5;
+  color: #17332f;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 28rpx;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button::after {
+  border: 0;
+}
+
+.page-shell {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 28rpx 28rpx 56rpx;
+}
+
+.page-heading {
+  margin: 0;
+  color: #112f2a;
+  font-size: 48rpx;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.page-intro {
+  margin: 12rpx 0 0;
+  color: #60716d;
+  font-size: 27rpx;
+  line-height: 1.6;
+}
+
+.surface {
+  box-sizing: border-box;
+  border: 1rpx solid #dce6e2;
+  border-radius: 24rpx;
+  background: #ffffff;
+  box-shadow: 0 10rpx 32rpx rgba(16, 62, 54, 0.06);
+}
+
+.primary-button,
+.secondary-button,
+.danger-button {
+  box-sizing: border-box;
+  min-height: 88rpx;
+  border-radius: 18rpx;
+  padding: 20rpx 28rpx;
+  font-size: 29rpx;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.primary-button {
+  background: #0f6b5f;
+  color: #ffffff;
+}
+
+.primary-button[disabled] {
+  background: #a9bbb6;
+  color: #eff4f2;
+}
+
+.secondary-button {
+  border: 1rpx solid #a9c6be;
+  background: #ffffff;
+  color: #145c52;
+}
+
+.danger-button {
+  border: 1rpx solid #efc8c4;
+  background: #fff7f6;
+  color: #a3342a;
+}
+
+.status-panel {
+  margin-top: 28rpx;
+  padding: 40rpx 30rpx;
+  text-align: center;
+}
+
+.status-panel__title {
+  display: block;
+  color: #17332f;
+  font-size: 31rpx;
+  font-weight: 650;
+}
+
+.status-panel__message {
+  display: block;
+  margin-top: 12rpx;
+  color: #687a75;
+  line-height: 1.6;
+}
+
+.status-panel__message--error {
+  color: #9d352c;
+}
+
+.status-panel__action {
+  display: inline-flex;
+  width: auto;
+  min-height: 72rpx;
+  margin-top: 24rpx;
+  align-items: center;
+  padding: 14rpx 30rpx;
+}
+
+.price {
+  color: #b84f1d;
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
+.muted {
+  color: #6a7b77;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}

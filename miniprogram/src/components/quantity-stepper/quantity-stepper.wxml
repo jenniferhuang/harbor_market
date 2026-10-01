@@ -1,0 +1,15 @@
+<view class="stepper" aria-role="group" aria-label="数量选择">
+  <button
+    class="stepper__button"
+    disabled="{{disabled || value == min}}"
+    bindtap="decrement"
+    aria-label="减少数量"
+  >−</button>
+  <text class="stepper__value" aria-label="当前数量 {{value}}">{{value}}</text>
+  <button
+    class="stepper__button"
+    disabled="{{disabled || value >= max}}"
+    bindtap="increment"
+    aria-label="增加数量"
+  >+</button>
+</view>

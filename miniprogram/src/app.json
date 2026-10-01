@@ -1,0 +1,38 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/product/product",
+    "pages/cart/cart",
+    "pages/settings/settings"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#0f4c45",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "Harbor Market",
+    "backgroundColor": "#f4f7f5",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#65736f",
+    "selectedColor": "#0f6b5f",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "选购"
+      },
+      {
+        "pagePath": "pages/cart/cart",
+        "text": "购物车"
+      },
+      {
+        "pagePath": "pages/settings/settings",
+        "text": "设置"
+      }
+    ]
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json"
+}
