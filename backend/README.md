@@ -105,6 +105,47 @@ Request tests use an in-memory database. To additionally verify the Alembic migr
 case-insensitive uniqueness against PostgreSQL, point `TEST_DATABASE_URL` at a disposable database
 whose name contains `test`, then run `uv run pytest -m postgres`.
 
+The persistent development database set up on
+`aqa01-i01-ocr01.int.rclabenv.com` uses PostgreSQL 16.13, database `xiangyue_xiamen`, and
+application role `harbor_market`, matching the locally verified PostgreSQL 16.13 runtime.
+Migrations are at `0004_track_promoted_staging_keys`, with 12 public tables. Both preview accounts
+were preserved, including one admin. Never use this database for destructive migration/concurrency
+tests or set it as `TEST_DATABASE_URL`.
+
+Start the configured Docker application from the project root:
+
+```bash
+bash deploy/start-development.sh
+```
+
+The script verifies database access from Docker, starts the application without rebuilding, and
+checks health. Both backend and cleanup worker connect directly to
+`aqa01-i01-ocr01.int.rclabenv.com:55432` via the root `.env`
+`COMPOSE_DATABASE_URL` and development Compose override. MinIO remains local. Base production
+Compose used alone retains its `POSTGRES_*` connection.
+
+An SSH tunnel is optional. For a manual tunnel when local port `55433` is free:
+
+```bash
+ssh -N -L 127.0.0.1:55433:127.0.0.1:55432 root@aqa01-i01-ocr01.int.rclabenv.com
+```
+
+To use the tunnel, set native `DATABASE_URL` to `127.0.0.1:55433` and Docker
+`COMPOSE_DATABASE_URL` to `host.docker.internal:55433`, retaining the application credentials.
+The startup script recognizes and manages this connection mode.
+
+For native backend work, root `.env` `DATABASE_URL` uses the direct VM endpoint. From the project root:
+
+```bash
+cd backend
+uv run --env-file ../.env uvicorn app.main:app --reload
+```
+
+The explicit `--env-file` loads the root file when running from `backend`. A native backend also
+needs a reachable object-storage endpoint for media operations; Compose's `minio:9000` hostname
+is private to its network. Existing local database backup helpers do not back up the VM database.
+See [the runbook](../deploy/development-db/README.md) for VM backups and production promotion.
+
 Rate limits use the ASGI client address by default. The bundled Compose deployment sets
 `TRUST_PROXY_HEADERS=true` because Uvicorn is reachable only from the private Nginx service; Nginx
 sets a single `X-Real-IP`, and the API validates it as one IPv4/IPv6 address before using it. Leave

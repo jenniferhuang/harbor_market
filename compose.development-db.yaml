@@ -1,0 +1,19 @@
+# Opt-in local application connection to the persistent development database.
+# The production Compose file continues to use its private PostgreSQL service.
+services:
+  db:
+    profiles:
+      - local-database
+
+  backend:
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:?COMPOSE_DATABASE_URL is required for VM development}
+    depends_on: !override
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  cleanup-worker:
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:?COMPOSE_DATABASE_URL is required for VM development}

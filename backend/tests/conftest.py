@@ -170,7 +170,7 @@ def settings() -> Settings:
         database_url="sqlite+pysqlite://",
         auth_secret_key="test-only-signing-key-that-is-at-least-32-characters",
         auth_cookie_secure=False,
-        allowed_hosts=("testserver,localhost,127.0.0.1,app.hermes-node.com,*.trycloudflare.com"),
+        allowed_hosts=("testserver,localhost,127.0.0.1,harbor.hermes-node.com,*.trycloudflare.com"),
         argon2_time_cost=1,
         argon2_memory_cost_kib=8_192,
         argon2_parallelism=1,

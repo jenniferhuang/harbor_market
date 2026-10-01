@@ -112,7 +112,7 @@ def test_auth_responses_have_security_headers(client: TestClient) -> None:
 
 
 def test_trusted_hosts_accept_configured_hostname_and_wildcard(client: TestClient) -> None:
-    for host in ("app.hermes-node.com", "preview-123.trycloudflare.com"):
+    for host in ("harbor.hermes-node.com", "preview-123.trycloudflare.com"):
         response = client.get("/api/v1/health", headers={"Host": host})
         assert response.status_code == 200
 

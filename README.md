@@ -2,6 +2,10 @@
 
 Harbor Market is a Mac-hosted Python/Vue application scaffold with real local user registration and login. FastAPI serves the API, Vue provides the browser experience, PostgreSQL stores application data in the `xiangyue_xiamen` database, and a private MinIO bucket stores product media.
 
+See [the project guide](docs/PROJECT_GUIDE.md) for folder roles, the shared web/Mini Program backend,
+and the `wechat-miniprogram` development worktree. The [database review](docs/Harbor_Market_DB_Review.html)
+explains the current schema and relationships.
+
 ## Runtime
 
 - Python 3.12 + FastAPI
@@ -30,6 +34,42 @@ Promote the operator account, then open `/admin/products`:
 ```bash
 docker compose exec backend python -m app.cli promote-admin YOUR_USERNAME
 ```
+
+## Persistent development database
+
+The development application is configured to use the persistent database on
+`aqa01-i01-ocr01.int.rclabenv.com`: PostgreSQL 16.13, database `xiangyue_xiamen`, and application
+role `harbor_market`. Migrations are at `0004_track_promoted_staging_keys`, with 12 public tables.
+Both preview accounts were preserved, including one administrator. MinIO and existing media
+remain local.
+
+Start from the project root with Docker running:
+
+```bash
+bash deploy/start-development.sh
+```
+
+The script verifies the database from Docker, starts the application without rebuilding, and
+checks health. Native tools and containers connect directly to
+`aqa01-i01-ocr01.int.rclabenv.com:55432` on the internal network. An SSH tunnel remains optional
+when connection URLs use the local tunnel endpoints. Local port `55432` belongs to another
+project and is untouched.
+
+The root `.env` selects `compose.development-db.yaml` through `COMPOSE_FILE` and supplies
+`COMPOSE_DATABASE_URL` for both backend and cleanup worker. The local Compose database is optional
+under the `local-database` profile. The base production `compose.yaml` continues to use its own
+`POSTGRES_*` database when used alone. See [the development database runbook](deploy/development-db/README.md)
+for connection and operations instructions.
+
+Development data is persistent and intended for later production import or migration. Catalog
+promotion includes matching category codes and the associated MinIO image objects; the runbook
+documents the import and whole-dataset migration paths.
+
+Existing local database backup and paired backup/restore helpers do not back up the VM database.
+Use a VM `pg_dump` and matching local MinIO data for whole-dataset production promotion.
+
+Never point destructive PostgreSQL migration/concurrency tests at this database. Those tests
+need a separate disposable database configured with `TEST_DATABASE_URL`.
 
 ## Product center
 

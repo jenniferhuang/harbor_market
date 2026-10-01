@@ -121,7 +121,7 @@ STORAGE_SECRET_KEY=$storage_secret_key
 STORAGE_BUCKET=harbor-market-products
 UPLOAD_MAX_BYTES=5242880
 OBJECT_CLEANUP_INTERVAL_SECONDS=60
-ALLOWED_HOSTS=localhost,127.0.0.1,app.hermes-node.com,*.trycloudflare.com
+ALLOWED_HOSTS=localhost,127.0.0.1,harbor.hermes-node.com,*.trycloudflare.com
 TRUST_PROXY_HEADERS=true
 ENV
 fi

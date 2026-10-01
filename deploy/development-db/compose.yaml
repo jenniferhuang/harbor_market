@@ -1,0 +1,26 @@
+name: harbor-market-development
+
+services:
+  postgres:
+    image: postgres:16.13-bookworm
+    container_name: harbor-market-development-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: harbor_market_operator
+      POSTGRES_PASSWORD: ${DATABASE_OPERATOR_PASSWORD:?Database operator password is required}
+    ports:
+      - 127.0.0.1:${REMOTE_DATABASE_PORT:-55432}:5432
+      - ${REMOTE_DATABASE_BIND_ADDRESS:?VM private interface address is required}:${REMOTE_DATABASE_PORT:-55432}:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U harbor_market_operator -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    name: harbor-market-development-db-data
