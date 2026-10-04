@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     login_failure_rate_window_seconds: int = Field(default=60, ge=1, le=86_400)
     rate_limit_max_keys: int = Field(default=10_000, ge=100, le=1_000_000)
 
+    wechat_miniprogram_auth_mode: Literal["disabled", "live"] = "disabled"
+    wechat_miniprogram_app_id: str | None = None
+    wechat_miniprogram_app_secret: SecretStr | None = None
+    wechat_miniprogram_timeout_seconds: int = Field(default=5, ge=1, le=15)
+    mini_session_ttl_seconds: int = Field(default=7 * 24 * 60 * 60, ge=1, le=30 * 24 * 60 * 60)
+    mini_login_rate_limit: int = Field(default=10, ge=1, le=100)
+    mini_login_rate_window_seconds: int = Field(default=60, ge=1, le=86_400)
+    mini_avatar_upload_max_bytes: int = Field(default=2 * 1024 * 1024, ge=1, le=2 * 1024 * 1024)
+
     cors_allowed_origins: str = ""
     allowed_hosts: str = "localhost,127.0.0.1"
     trust_proxy_headers: bool = False

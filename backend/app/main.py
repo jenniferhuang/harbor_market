@@ -15,7 +15,9 @@ from app.middleware import SecurityHeadersMiddleware
 from app.payments.providers.base import PaymentGateway
 from app.payments.providers.factory import build_payment_gateway
 from app.services.auth import AuthService
+from app.services.mini_auth import MiniAuthService
 from app.services.object_storage import ObjectStorage, build_object_storage
+from app.wechat.auth import WechatAuthProvider, build_wechat_auth_provider
 
 
 def create_app(
@@ -24,6 +26,7 @@ def create_app(
     engine: Engine | None = None,
     object_storage: ObjectStorage | None = None,
     payment_gateway: PaymentGateway | None = None,
+    wechat_auth_provider: WechatAuthProvider | None = None,
 ) -> FastAPI:
     settings = settings or get_settings()
     database_engine = engine or build_engine(settings)
@@ -44,6 +47,17 @@ def create_app(
     app.state.session_factory = build_session_factory(database_engine)
     app.state.cookies = SessionCookieManager(settings)
     app.state.auth_service = AuthService(PasswordManager(settings))
+    app.state.mini_auth_service = MiniAuthService()
+    app.state.wechat_auth_provider = (
+        wechat_auth_provider
+        if wechat_auth_provider is not None
+        else build_wechat_auth_provider(settings)
+    )
+    app.state.mini_login_rate_limiter = SlidingWindowRateLimiter(
+        settings.mini_login_rate_limit,
+        settings.mini_login_rate_window_seconds,
+        max_keys=settings.rate_limit_max_keys,
+    )
     app.state.payment_gateway = payment_gateway or build_payment_gateway(
         settings,
         app.state.session_factory,
@@ -73,7 +87,7 @@ def create_app(
             allow_origins=settings.parsed_cors_origins,
             allow_credentials=True,
             allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["Content-Type", "X-Idempotency-Key"],
+            allow_headers=["Content-Type", "X-Idempotency-Key", "Authorization"],
         )
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.parsed_allowed_hosts)
     app.add_middleware(
