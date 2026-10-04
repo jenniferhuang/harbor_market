@@ -150,3 +150,69 @@ Rate limits use the ASGI client address by default. The bundled Compose deployme
 `TRUST_PROXY_HEADERS=true` because Uvicorn is reachable only from the private Nginx service; Nginx
 sets a single `X-Real-IP`, and the API validates it as one IPv4/IPv6 address before using it. Leave
 this setting false whenever the backend can be reached directly or through an untrusted proxy.
+
+## Native Mini Program WeChat login
+
+This feature adds migration `0005_add_mini_customer_sessions`, following `0004`. It creates
+independent `mini_customers` and `mini_sessions` tables; it does not convert browser users or grant
+administrator access. Apply it through the normal migration process after reviewing a backup of
+the target database. The implementation worktree does not migrate the persistent development DB.
+
+Login defaults to `WECHAT_MINIPROGRAM_AUTH_MODE=disabled`. Enable the real provider with `live`,
+`WECHAT_MINIPROGRAM_APP_ID` and `WECHAT_MINIPROGRAM_APP_SECRET` in the backend environment or ignored
+root `.env`. Compose forwards these settings to the backend. The AppSecret must never be placed in
+Mini Program code, frontend build variables, source control, or a client response. Incomplete or
+invalid live configuration returns a Chinese 503; disabled mode never manufactures a successful
+identity. Real WeChat login requires a registered Mini Program and its matching credentials.
+
+The backend exchanges the one-time `wx.login()` code using Tencent's
+[code2Session endpoint](https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/user-login/code2Session.html).
+Its fixed HTTPS target, timeout (1–15 seconds, default 5), bounded response and safe error messages
+keep upstream secrets private. Only the server-derived AppID/OpenID pair identifies a customer;
+Tencent's `session_key` is discarded. OpenID and AppID are not returned in the customer object.
+
+All success responses use `{ "data": ... }`; errors use `{ "error": { "code", "message" } }` with
+Chinese messages. Login and profile reject additional JSON fields, including client-supplied OpenID,
+roles and avatar URLs:
+
+| Method and path under `/api/v1/mini/auth` | Request | Response `data` |
+| --- | --- | --- |
+| `POST /login` | `{ "code": "wx.login code" }` | `access_token`, `token_type: "Bearer"`, UTC ISO8601 `expires_at`, `customer` |
+| `GET /me` | Bearer header | Customer |
+| `PATCH /profile` | Bearer header and `{ "nickname": "昵称" }` | Customer |
+| `POST /avatar` | Bearer header and multipart `file` | Customer |
+| `GET /avatar` | Bearer header | Private JPEG bytes |
+| `POST /logout` | Bearer header | `{ "logged_out": true }` |
+
+A customer contains only `id`, `nickname`, `avatar_url`. The initial nickname is `微信用户` and
+avatar URL is null. Nicknames must contain 1–64 Unicode code points after trimming, without control
+characters. The avatar URL becomes `/api/v1/mini/auth/avatar`; download it with `wx.downloadFile`
+and an `Authorization: Bearer <access_token>` header. Do not append tokens to URLs. Browser cookies
+are not accepted on these routes, and Mini Program tokens cannot authenticate browser/admin APIs.
+Guest public catalog and locally held cart behavior are unchanged.
+
+Sessions use cryptographically random opaque tokens. Only SHA-256 token/code hashes are stored;
+plaintext tokens, login codes and Tencent session keys are not retained. `MINI_SESSION_TTL_SECONDS`
+defaults to seven days and is capped at thirty days. Authentication checks expiry, revocation and
+active customer state. Logout revokes the current session without revoking other device sessions.
+Used-code hashes prevent replay for each AppID. This feature does not automatically purge expired
+session records; their retention and any future cleanup policy must preserve the code replay guard.
+
+Every login attempt consumes the client-address rate limit before calling Tencent. Defaults are
+10 attempts per 60 seconds (`MINI_LOGIN_RATE_LIMIT`, `MINI_LOGIN_RATE_WINDOW_SECONDS`), and 429
+responses carry `Retry-After`. The bounded limiter is per process; scale-out deployments need
+a shared limiter or an equivalent gateway policy. Keep proxy trust limited to the bundled proxy.
+
+Avatar files are capped at 2 MiB (`MINI_AVATAR_UPLOAD_MAX_BYTES`, optionally lower). Only static
+JPEG/PNG/WebP images of at most 16 million pixels are accepted. The backend verifies and reencodes
+them as metadata-free JPEGs within 512×512, stores them privately in existing MinIO, and serves
+only the authenticated customer's avatar with `Cache-Control: private, no-store`. Content hashes
+and lengths detect a corrupt stored object. Durable cleanup intents recover failed uploads and
+replaced avatars; the cleanup worker protects any avatar key still referenced by a customer.
+Existing bucket backups must include the `customers/` prefix when promoting customer data.
+
+Isolated SQLite and injected-provider tests exercise login, replay, profile, avatar, expiry,
+revocation and permission separation without contacting Tencent or the persistent database.
+Passing these tests does not claim live login verification. When credentials and deployment are
+ready, verify `wx.login` → backend login → `/me` → avatar upload/download → logout on a real
+Mini Program; expired/reused codes should produce a Chinese prompt to obtain a fresh code.

@@ -3,8 +3,11 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException
+from starlette.responses import Response
 
 
 class ApiError(Exception):
@@ -24,6 +27,21 @@ class ApiError(Exception):
 
 
 def install_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(HTTPException)
+    async def handle_http_error(request: Request, exc: HTTPException) -> Response:
+        if not request.url.path.startswith("/api/v1/mini/auth/"):
+            return await http_exception_handler(request, exc)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": {
+                    "code": "mini_request_invalid",
+                    "message": "请求无法处理，请检查参数后重试",
+                }
+            },
+            headers=exc.headers,
+        )
+
     @app.exception_handler(ApiError)
     async def handle_api_error(_request: Request, exc: ApiError) -> JSONResponse:
         return JSONResponse(
@@ -34,15 +52,18 @@ def install_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(
-        _request: Request, exc: RequestValidationError
+        request: Request, exc: RequestValidationError
     ) -> JSONResponse:
+        is_mini_auth = request.url.path.startswith("/api/v1/mini/auth/")
         fields: list[dict[str, Any]] = []
         for error in exc.errors():
             location = [str(part) for part in error.get("loc", ()) if part not in {"body", "query"}]
             fields.append(
                 {
                     "field": ".".join(location) or "request",
-                    "message": error.get("msg", "Invalid value"),
+                    "message": "参数无效，请检查后重试"
+                    if is_mini_auth
+                    else error.get("msg", "Invalid value"),
                 }
             )
         return JSONResponse(
@@ -50,7 +71,9 @@ def install_exception_handlers(app: FastAPI) -> None:
             content={
                 "error": {
                     "code": "validation_error",
-                    "message": "Request validation failed",
+                    "message": "请求参数无效，请检查后重试"
+                    if is_mini_auth
+                    else "Request validation failed",
                     "fields": fields,
                 },
                 "detail": fields,

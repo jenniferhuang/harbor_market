@@ -1,5 +1,6 @@
 from app.models.category import Category
 from app.models.import_job import ImportJob
+from app.models.mini_customer import MiniCustomer, MiniSession
 from app.models.object_cleanup_job import ObjectCleanupJob
 from app.models.payment import (
     MockPaymentProviderRecord,
@@ -13,6 +14,8 @@ from app.models.user import User
 __all__ = [
     "Category",
     "ImportJob",
+    "MiniCustomer",
+    "MiniSession",
     "ObjectCleanupJob",
     "MockPaymentProviderRecord",
     "PaymentAttempt",
