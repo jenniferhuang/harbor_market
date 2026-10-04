@@ -22,7 +22,7 @@ function miniProgramApi() {
 
 function normalizeApiBaseUrl(value) {
   if (typeof value !== 'string') {
-    throw new TypeError('API base URL must be a string')
+    throw new TypeError('接口地址必须是文本。')
   }
 
   const normalized = value.trim().replace(/\/+$/, '')
@@ -30,10 +30,10 @@ function normalizeApiBaseUrl(value) {
     /^https?:\/\/(?:localhost|(?:\d{1,3}\.){3}\d{1,3}|\[[0-9a-f:]+\]|[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)(?::(\d{1,5}))?$/i,
   )
   if (!match) {
-    throw new TypeError('API base URL must be an absolute HTTP(S) origin without a path')
+    throw new TypeError('请输入完整的接口域名，不要填写路径。')
   }
   if (match[1] && (Number(match[1]) < 1 || Number(match[1]) > 65_535)) {
-    throw new TypeError('API base URL port is invalid')
+    throw new TypeError('接口地址的端口无效。')
   }
   return normalized
 }
@@ -114,7 +114,9 @@ function fieldErrors(payload) {
 
   return fields.reduce((errors, item) => {
     if (item && typeof item.field === 'string' && typeof item.message === 'string') {
-      errors[item.field] = item.message
+      errors[item.field] = /[\u3400-\u9fff]/.test(item.message)
+        ? item.message
+        : '请检查填写内容。'
     }
     return errors
   }, {})
@@ -127,6 +129,7 @@ function errorFromResponse(status, payload) {
     status < 500 &&
     backendError &&
     typeof backendError.message === 'string' &&
+    /[\u3400-\u9fff]/.test(backendError.message) &&
     backendError.message.trim().length <= 240
       ? backendError.message.trim()
       : null
@@ -141,6 +144,11 @@ function errorFromResponse(status, payload) {
     code: backendError && typeof backendError.code === 'string' ? backendError.code : undefined,
     fieldErrors: fieldErrors(payload),
   })
+}
+
+function parseApiResponse(status, payload) {
+  if (status >= 200 && status < 300) return responsePayload(payload)
+  throw errorFromResponse(status, payload)
 }
 
 function request(pathOrOptions, maybeOptions = {}) {
@@ -171,15 +179,11 @@ function request(pathOrOptions, maybeOptions = {}) {
       timeout: options.timeout || DEFAULT_TIMEOUT_MS,
       success(response) {
         const status = Number(response.statusCode || 0)
-        if (status >= 200 && status < 300) {
-          try {
-            resolve(responsePayload(response.data))
-          } catch (error) {
-            reject(error)
-          }
-          return
+        try {
+          resolve(parseApiResponse(status, response.data))
+        } catch (error) {
+          reject(error)
         }
-        reject(errorFromResponse(status, response.data))
       },
       fail() {
         reject(new ApiError(0, '无法连接服务器，请检查网络后重试。'))
@@ -199,6 +203,7 @@ module.exports = {
   ApiError,
   absoluteMediaUrl,
   getApiBaseUrl,
+  parseApiResponse,
   request,
   setApiBaseUrl,
 }

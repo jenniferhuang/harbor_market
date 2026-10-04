@@ -26,7 +26,7 @@ async function logout() {
     logoutError.value =
       error instanceof ApiError
         ? error.message
-        : 'Sign out could not be completed. Please try again.'
+        : '退出登录失败，请稍后重试。'
   } finally {
     isLoggingOut.value = false
   }
@@ -55,7 +55,7 @@ async function logout() {
             :size="17"
             aria-hidden="true"
           />
-          <span>{{ isLoggingOut ? 'Signing out...' : 'Sign out' }}</span>
+          <span>{{ isLoggingOut ? '正在退出…' : '退出登录' }}</span>
         </button>
       </div>
     </header>
@@ -66,13 +66,13 @@ async function logout() {
         aria-labelledby="welcome-title"
       >
         <p class="eyebrow">
-          Home
+          首页
         </p>
         <h1 id="welcome-title">
-          Welcome, {{ auth.user?.username }}
+          欢迎，{{ auth.user?.username }}
         </h1>
         <p class="welcome-section__intro">
-          Your account is signed in and ready.
+          您已成功登录。
         </p>
 
         <div class="session-row">
@@ -81,13 +81,13 @@ async function logout() {
             aria-hidden="true"
           ><UserRound :size="22" /></span>
           <div>
-            <span class="session-row__label">Signed in as</span>
+            <span class="session-row__label">当前账号</span>
             <strong>{{ auth.user?.username }}</strong>
           </div>
           <span class="status-label"><Check
             :size="15"
             aria-hidden="true"
-          /> Active session</span>
+          /> 已登录</span>
         </div>
 
         <RouterLink
@@ -111,7 +111,7 @@ async function logout() {
           class="notice notice--error home-page__error"
           role="alert"
         >
-          Your administrator access has changed. The management workspace was closed.
+          您的管理员权限已变更，商品管理页面已关闭。
         </p>
 
         <p

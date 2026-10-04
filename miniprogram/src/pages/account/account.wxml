@@ -1,0 +1,35 @@
+<view class="page-shell account-page" aria-role="main">
+  <text class="account-eyebrow">港湾集市</text>
+  <text class="page-heading">我的</text>
+  <text class="page-intro">每一份好物，都为你用心准备。</text>
+
+  <view class="surface profile-card">
+    <button
+      class="profile-card__avatar"
+      bindtap="openProfileDialog"
+      disabled="{{authBusy}}"
+      aria-label="{{authStatus == 'authenticated' ? '编辑头像和昵称' : '打开微信登录'}}"
+    >
+      <image wx:if="{{avatarPath}}" src="{{avatarPath}}" class="profile-card__image" mode="aspectFill" binderror="onAvatarError" />
+      <view wx:else class="profile-card__placeholder" aria-hidden="true"><view class="profile-card__head"></view><view class="profile-card__shoulders"></view></view>
+    </button>
+    <view class="profile-card__copy">
+      <text class="profile-card__name">{{authStatus == 'authenticated' ? nickname : (authStatus == 'restoring' ? '正在恢复登录…' : '欢迎来逛逛')}}</text>
+      <text class="profile-card__status">{{authStatus == 'authenticated' ? '已通过微信登录' : '登录可保存头像和昵称，也可以继续以游客身份选购。'}}</text>
+    </view>
+    <button wx:if="{{authStatus == 'authenticated'}}" class="secondary-button profile-card__action" disabled="{{authBusy}}" bindtap="editProfile">编辑资料</button>
+    <button wx:else class="primary-button profile-card__action" disabled="{{authBusy}}" loading="{{authStatus == 'restoring'}}" bindtap="openLogin">{{authStatus == 'restoring' ? '请稍候…' : '微信登录'}}</button>
+  </view>
+
+  <view wx:if="{{errorMessage}}" class="account-message" aria-role="alert">{{errorMessage}}</view>
+
+  <view class="surface account-actions">
+    <button class="account-row" bindtap="continueShopping"><text>继续选购</text><text class="account-row__arrow" aria-hidden="true">›</text></button>
+    <button class="account-row" bindtap="openSettings"><text>连接设置</text><text class="account-row__arrow" aria-hidden="true">›</text></button>
+  </view>
+
+  <text class="account-note">购物车保存在当前设备，登录或退出不会清空其中的商品。</text>
+  <button wx:if="{{authStatus == 'authenticated'}}" class="secondary-button logout-button" disabled="{{authBusy}}" bindtap="confirmLogout">退出登录</button>
+</view>
+
+<login-dialog visible="{{loginVisible}}" mode="{{loginMode}}" bind:close="closeLogin" bind:success="onLoginSuccess" />

@@ -205,7 +205,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function invalidContract(label: string): never {
-  throw new ApiError(502, `The server returned an invalid ${label} response.`)
+  const labels: Record<string, string> = {
+    category: '类目', 'category list': '类目列表', product: '商品', 'product list': '商品列表',
+    'product specification': '商品规格', 'product specification option': '规格选项',
+    'product SKU': '销售规格', 'product image': '商品图片', 'catalog import': '导入结果',
+    'import job': '导入任务', 'import job list': '导入任务列表',
+    'object cleanup job': '清理任务', 'object cleanup job list': '清理任务列表',
+    'staged product image': '暂存图片',
+  }
+  throw new ApiError(502, `服务器返回的${labels[label] ?? '数据'}异常，请刷新后重试。`)
 }
 
 function recordValue(value: unknown, label: string): Record<string, unknown> {

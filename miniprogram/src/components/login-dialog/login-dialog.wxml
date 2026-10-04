@@ -1,0 +1,53 @@
+<view wx:if="{{visible}}" class="login-overlay" catchtouchmove="blockBackgroundTouch">
+  <view class="login-dialog" aria-role="dialog" aria-label="{{mode == 'profile' ? '编辑个人资料' : '微信登录'}}">
+    <button
+      class="login-dialog__close"
+      disabled="{{submitting || authBusy}}"
+      bindtap="close"
+      aria-label="{{mode == 'profile' ? '关闭资料窗口' : '关闭登录窗口'}}"
+    >×</button>
+    <text class="login-dialog__title">{{mode == 'profile' ? '编辑个人资料' : '登录后可体验更多功能'}}</text>
+    <text class="login-dialog__subtitle">{{mode == 'profile' ? '让我们更好地认识你' : '欢迎来到港湾集市'}}</text>
+
+    <button
+      class="avatar-picker"
+      open-type="chooseAvatar"
+      bindchooseavatar="onChooseAvatar"
+      disabled="{{submitting || authBusy}}"
+      aria-label="选择微信头像"
+    >
+      <image wx:if="{{avatarPreview}}" class="avatar-picker__image" src="{{avatarPreview}}" mode="aspectFill" binderror="onAvatarError" />
+      <view wx:else class="avatar-picker__placeholder" aria-hidden="true">
+        <view class="avatar-picker__head"></view>
+        <view class="avatar-picker__shoulders"></view>
+      </view>
+      <view class="avatar-picker__camera" aria-hidden="true"><view class="camera-body"><view class="camera-lens"></view></view></view>
+    </button>
+    <text class="avatar-picker__label">点击选择头像</text>
+
+    <view class="nickname-row">
+      <text class="nickname-row__label">昵称</text>
+      <input
+        class="nickname-row__input"
+        type="nickname"
+        value="{{nickname}}"
+        placeholder="请输入昵称（选填）"
+        maxlength="64"
+        disabled="{{submitting || authBusy}}"
+        bindinput="onNicknameInput"
+        bindblur="onNicknameInput"
+        aria-label="昵称，选填"
+      />
+    </view>
+
+    <view class="login-dialog__helper">头像和昵称可选择填写，方便识别你的账户。你也可以先登录，稍后在“我的”中补充。</view>
+    <view wx:if="{{errorMessage}}" class="login-dialog__error" aria-role="alert">{{errorMessage}}</view>
+    <button
+      class="login-dialog__submit"
+      disabled="{{submitting || authBusy}}"
+      loading="{{submitting}}"
+      bindtap="submit"
+    >{{submitting ? (mode == 'profile' ? '正在保存…' : '正在登录…') : (authBusy ? '请稍候…' : (mode == 'profile' ? '保存资料' : '微信登录'))}}</button>
+    <button class="login-dialog__later" disabled="{{submitting || authBusy}}" bindtap="close">{{mode == 'profile' ? '取消' : '暂不登录，继续逛逛'}}</button>
+  </view>
+</view>

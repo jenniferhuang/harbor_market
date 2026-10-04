@@ -38,6 +38,7 @@ describe('native Mini Program project structure', () => {
       'pages/home/home',
       'pages/product/product',
       'pages/cart/cart',
+      'pages/account/account',
       'pages/settings/settings',
     ])
     for (const page of app.pages) expectMiniProgramUnit(path.join(sourceRoot, page))
@@ -117,5 +118,20 @@ describe('native Mini Program project structure', () => {
     expect(shopperSource).not.toMatch(/\/api\/v1\/admin/)
     expect(shopperSource).not.toMatch(/MOCK-HMAC-SHA256/)
     expect(shopperSource).not.toMatch(/requestPayment/)
+  })
+
+  it('offers native optional avatar and nickname controls with an accessible guest exit', () => {
+    const basePath = path.join(sourceRoot, 'components/login-dialog/login-dialog')
+    expectMiniProgramUnit(basePath)
+    expect(readJson(`${basePath}.json`)).toMatchObject({ component: true })
+    const markup = fs.readFileSync(`${basePath}.wxml`, 'utf8')
+    expect(markup).toMatch(/<button\b[^>]*open-type="chooseAvatar"[^>]*bindchooseavatar=/s)
+    expect(markup).toMatch(/<input\b[^>]*type="nickname"/s)
+    expect(markup).toContain('暂不登录，继续逛逛')
+    expect(markup).toContain('aria-role="dialog"')
+    const source = fs.readFileSync(`${basePath}.js`, 'utf8')
+    expect(source).not.toMatch(/getUserInfo|getUserProfile|open-type="getUserInfo"/)
+    const app = readJson(path.join(sourceRoot, 'app.json'))
+    expect(app.tabBar.list).toContainEqual({ pagePath: 'pages/account/account', text: '我的' })
   })
 })

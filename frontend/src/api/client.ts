@@ -1,3 +1,5 @@
+import { apiErrorMessage, fieldErrorMessage } from './messages'
+
 export type ApiFieldErrors = Record<string, string>
 export const AUTH_REQUIRED_EVENT = 'harbor-market:auth-required'
 export const ADMIN_PERMISSION_CHANGED_EVENT = 'harbor-market:admin-permission-changed'
@@ -31,10 +33,12 @@ export class ApiError extends Error {
   readonly code?: string
 
   constructor(status: number, message: string, fieldErrors: ApiFieldErrors = {}, code?: string) {
-    super(message)
+    super(apiErrorMessage(status, message, code))
     this.name = 'ApiError'
     this.status = status
-    this.fieldErrors = fieldErrors
+    this.fieldErrors = Object.fromEntries(
+      Object.entries(fieldErrors).map(([field, error]) => [field, fieldErrorMessage(field, error)]),
+    )
     this.code = code
   }
 }
@@ -44,13 +48,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeFieldName(field: string): string {
-  return fieldAliases[field] ?? field
+  return Object.hasOwn(fieldAliases, field) ? fieldAliases[field]! : field
 }
 
 function extractFieldErrors(payload: unknown): ApiFieldErrors {
   if (!isRecord(payload)) return {}
 
-  const errors: ApiFieldErrors = {}
+  const errors: ApiFieldErrors = Object.create(null) as ApiFieldErrors
   const typedPayload = payload as ErrorPayload
 
   if (isRecord(typedPayload.errors)) {
@@ -96,13 +100,7 @@ function extractSafeMessage(payload: unknown, status: number): string | undefine
 }
 
 function safeErrorMessage(status: number): string {
-  if (status === 0) return 'Unable to reach the server. Check your connection and try again.'
-  if (status === 401) return 'Your session is not authenticated.'
-  if (status === 409) return 'That value is already in use.'
-  if (status === 422) return 'Please review the highlighted fields.'
-  if (status === 429) return 'Too many attempts. Please wait a moment and try again.'
-  if (status >= 500) return 'The service is temporarily unavailable. Please try again.'
-  return 'The request could not be completed. Please try again.'
+  return apiErrorMessage(status, '')
 }
 
 async function readJson(response: Response): Promise<unknown> {

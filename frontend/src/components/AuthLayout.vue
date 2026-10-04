@@ -13,7 +13,7 @@ defineProps<{
       <AppBrand />
 
       <header class="auth-panel__header">
-        <p class="eyebrow">Account access</p>
+        <p class="eyebrow">账号登录</p>
         <h1 :id="`${title.toLowerCase().replaceAll(' ', '-')}-title`">{{ title }}</h1>
         <p>{{ description }}</p>
       </header>

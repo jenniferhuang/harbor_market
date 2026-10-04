@@ -1,6 +1,7 @@
 const { fetchCategories, fetchProducts } = require('../../api/catalog')
 const { absoluteMediaUrl } = require('../../api/client')
 const { formatCents } = require('../../utils/money')
+const { getAuthState, subscribe, shouldPromptForLogin } = require('../../state/auth-store')
 
 const PAGE_SIZE = 10
 
@@ -63,11 +64,86 @@ Page({
     totalPages: 1,
     loading: true,
     errorMessage: '',
+    authStatus: 'guest',
+    authBusy: false,
+    customerName: '',
+    avatarPath: '',
+    loginVisible: false,
+    loginMode: 'login',
   },
 
   onLoad() {
+    this._alive = true
     this._requestSequence = 0
+    this._unsubscribeAuth = subscribe((state) => this.applyAuthState(state))
+    this.applyAuthState(getAuthState())
     this.loadInitialData()
+  },
+
+  onShow() {
+    this._isVisible = true
+    this.applyAuthState(getAuthState())
+  },
+
+  onHide() {
+    this._isVisible = false
+  },
+
+  onUnload() {
+    this._alive = false
+    this._isVisible = false
+    if (this._unsubscribeAuth) this._unsubscribeAuth()
+  },
+
+  applyAuthState(state) {
+    if (!this._alive) return
+    this.setData({
+      authStatus: state.status,
+      authBusy: state.busy || state.status === 'restoring',
+      customerName: state.customer ? state.customer.nickname || '微信用户' : '',
+      avatarPath: state.avatarPath || '',
+    })
+    if (
+      this._isVisible &&
+      state.status === 'guest' &&
+      !state.busy &&
+      !this.data.loginVisible &&
+      shouldPromptForLogin()
+    ) {
+      this.setData({ loginVisible: true, loginMode: 'login' })
+    }
+  },
+
+  openAccountDialog() {
+    if (this.data.authBusy) return
+    this.setData({
+      loginVisible: true,
+      loginMode: this.data.authStatus === 'authenticated' ? 'profile' : 'login',
+    })
+  },
+
+  closeLogin() {
+    this.setData({ loginVisible: false })
+  },
+
+  onLoginSuccess(event) {
+    this.setData({ loginVisible: false })
+    this.applyAuthState(getAuthState())
+    const { mode, warningMessage } = event.detail
+    if (warningMessage) {
+      wx.showModal({
+        title: mode === 'profile' ? '部分资料尚未保存' : '已登录，资料尚未保存',
+        content: warningMessage,
+        showCancel: false,
+        confirmText: '知道了',
+      })
+      return
+    }
+    wx.showToast({ title: mode === 'profile' ? '资料已保存' : '微信登录成功', icon: 'success' })
+  },
+
+  onAvatarError() {
+    this.setData({ avatarPath: '' })
   },
 
   async onPullDownRefresh() {

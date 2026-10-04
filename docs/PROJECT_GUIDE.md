@@ -121,9 +121,10 @@ npm run lint
 
 ## Current feature boundary
 
-Product/category browsing, SKU selection, and the cart are implemented. The cart is stored on the
-device. It does not yet create a backend order or reserve stock. Customer WeChat login, checkout,
-order management, and live WeChat Pay still need implementation in the shared backend and client.
+Product/category browsing, SKU selection, the local cart, and optional WeChat customer login are
+implemented. Customer sessions, nicknames, and private avatars use the shared backend; real login
+requires the matching Mini Program AppID and backend AppSecret. The cart is stored on the device.
+Checkout, order management, stock reservation, and live WeChat Pay still need implementation.
 The shared backend already contains a mock payment state machine and provider for development;
 it does not process live payments or enable checkout in the Mini Program.
 
@@ -136,5 +137,6 @@ it does not process live payments or enable checkout in the Mini Program.
 - [Mini Program API client and origin](../miniprogram/src/api/client.js)
 - [Mini Program catalog requests](../miniprogram/src/api/catalog.js)
 - [Mini Program local cart](../miniprogram/src/state/cart-store.js)
+- [WeChat customer login setup and contract](WECHAT_LOGIN.md)
 - [Mini Program setup](../miniprogram/README.md)
 - [Persistent database operations](../deploy/development-db/README.md)

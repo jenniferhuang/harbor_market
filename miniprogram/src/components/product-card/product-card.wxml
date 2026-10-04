@@ -12,7 +12,7 @@
     aria-label="{{item.name}} 商品图片"
   />
   <view wx:else class="product-card__image product-card__placeholder" aria-hidden="true">
-    <text>Harbor</text>
+    <text>港湾</text>
   </view>
 
   <view class="product-card__body">

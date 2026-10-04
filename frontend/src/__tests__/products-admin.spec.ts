@@ -125,6 +125,8 @@ describe('product administration view', () => {
     const interaction = userEvent.setup()
 
     expect(await screen.findByText('生椰拿铁')).toBeVisible()
+    expect(screen.getByRole('cell', { name: '草稿' })).toBeVisible()
+    expect(screen.getByRole('cell', { name: '有货 · 30' })).toBeVisible()
     await interaction.click(screen.getByRole('button', { name: '新建商品' }))
     await interaction.type(screen.getByLabelText('商品编码 *'), 'AMERICANO-01')
     await interaction.type(screen.getByLabelText('商品名称 *'), '美式咖啡')
@@ -161,6 +163,9 @@ describe('product administration view', () => {
     await interaction.click(screen.getByRole('button', { name: '预检（不写入）' }))
 
     expect(await screen.findByText('商品名称不能为空')).toBeVisible()
+    expect(screen.getByText('商品数')).toBeVisible()
+    expect(screen.getByRole('cell', { name: '商品' })).toBeVisible()
+    expect(screen.getByRole('cell', { name: '名称' })).toBeVisible()
     expect(catalogMocks.importProducts).toHaveBeenCalledWith(
       workbook,
       true,
@@ -208,7 +213,8 @@ describe('product administration view', () => {
     await interaction.click(dryRunButton)
     await waitFor(() => expect(commitButton).toBeEnabled())
     await interaction.click(commitButton)
-    await screen.findByText('connection lost')
+    await screen.findByText('Excel 导入失败。')
+    expect(screen.queryByText('connection lost')).not.toBeInTheDocument()
     await interaction.click(commitButton)
     await screen.findByText('Excel 已成功导入。')
 
@@ -710,6 +716,10 @@ describe('product administration view', () => {
     await interaction.click(await screen.findByRole('button', { name: '查看详情' }))
 
     expect(await screen.findByText('缺少商品名称')).toBeVisible()
+    expect(screen.getAllByRole('cell', { name: '图片已删除' })).toHaveLength(2)
+    expect(screen.getByRole('cell', { name: '待处理' })).toBeVisible()
+    expect(screen.getByText('图片清理未能完成，请重试或联系管理员查看服务日志。')).toBeVisible()
+    expect(screen.queryByText('storage unavailable')).not.toBeInTheDocument()
     expect(catalogMocks.getImportJob).toHaveBeenCalledWith(24)
     expect(screen.getByText('products/9/gallery/orphan.webp')).toBeVisible()
     expect(screen.getAllByRole('button', { name: '重试' })).toHaveLength(1)

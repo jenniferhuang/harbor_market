@@ -41,7 +41,7 @@ function updateValue(event: Event) {
         class="icon-button password-control__toggle"
         type="button"
         :disabled="disabled"
-        :aria-label="isVisible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`"
+        :aria-label="isVisible ? `隐藏${label}` : `显示${label}`"
         :aria-pressed="isVisible"
         @click="isVisible = !isVisible"
       >

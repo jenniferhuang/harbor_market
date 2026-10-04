@@ -43,7 +43,7 @@ grep -Fq '"database":"ok"' "$response"
 
 code="$(request "$base_url/register")"
 expect_code 200 "$code" registration_ui
-grep -Fq 'Harbor Market' "$response"
+grep -Fq '港湾集市' "$response"
 
 code="$(request -H 'Content-Type: application/json' --data-binary "$payload" \
   "$base_url/api/v1/auth/register")"

@@ -1,6 +1,13 @@
 <view class="page-shell home-page" aria-role="main">
-  <view class="hero" aria-label="Harbor Market 商品目录">
-    <text class="hero__eyebrow">HARBOR MARKET</text>
+  <view class="hero" aria-label="港湾集市商品目录">
+    <view class="hero__topline">
+      <text class="hero__eyebrow">港湾集市</text>
+      <button class="hero-account" disabled="{{authBusy}}" bindtap="openAccountDialog" aria-label="{{authStatus == 'authenticated' ? '编辑头像和昵称' : '打开微信登录'}}">
+        <image wx:if="{{avatarPath}}" class="hero-account__avatar" src="{{avatarPath}}" mode="aspectFill" binderror="onAvatarError" />
+        <view wx:else class="hero-account__placeholder" aria-hidden="true"><view class="hero-account__head"></view><view class="hero-account__shoulders"></view></view>
+        <text class="hero-account__label">{{authStatus == 'authenticated' ? customerName : (authStatus == 'restoring' ? '请稍候' : '登录')}}</text>
+      </button>
+    </view>
     <text id="home-title" class="page-heading">选一份今日好物</text>
     <text class="page-intro">浏览已上架商品。价格和库存以服务端目录为准。</text>
   </view>
@@ -102,3 +109,5 @@
     </view>
   </view>
 </view>
+
+<login-dialog visible="{{loginVisible}}" mode="{{loginMode}}" bind:close="closeLogin" bind:success="onLoginSuccess" />

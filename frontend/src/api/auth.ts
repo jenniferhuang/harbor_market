@@ -50,7 +50,7 @@ function unwrapUserPayload(payload: unknown): Record<string, unknown> | undefine
 function parseUser(payload: unknown): User {
   const candidate = unwrapUserPayload(payload)
   if (!candidate || typeof candidate.username !== 'string') {
-    throw new ApiError(502, 'The server returned an invalid user response.')
+    throw new ApiError(502, '服务器返回的账号信息异常，请稍后重试。')
   }
 
   const user: User = { username: candidate.username }

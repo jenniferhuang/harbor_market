@@ -15,6 +15,75 @@
   letter-spacing: 4rpx;
 }
 
+.hero__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin-bottom: 12rpx;
+}
+
+.hero__topline .hero__eyebrow {
+  margin-bottom: 0;
+}
+
+.hero-account {
+  display: flex;
+  max-width: 280rpx;
+  min-height: 64rpx;
+  align-items: center;
+  gap: 12rpx;
+  margin: 0;
+  border-radius: 999rpx;
+  padding: 6rpx 14rpx 6rpx 6rpx;
+  background: #e6f0eb;
+  color: #145c52;
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
+.hero-account__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-account__avatar,
+.hero-account__placeholder {
+  display: block;
+  width: 52rpx;
+  height: 52rpx;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #cbddd3;
+}
+
+.hero-account__placeholder {
+  position: relative;
+}
+
+.hero-account__head {
+  position: absolute;
+  top: 10rpx;
+  left: 17rpx;
+  width: 18rpx;
+  height: 20rpx;
+  border-radius: 50%;
+  background: #71988a;
+}
+
+.hero-account__shoulders {
+  position: absolute;
+  top: 33rpx;
+  left: 8rpx;
+  width: 36rpx;
+  height: 25rpx;
+  border-radius: 20rpx 20rpx 0 0;
+  background: #71988a;
+}
+
 .search {
   display: flex;
   min-height: 92rpx;

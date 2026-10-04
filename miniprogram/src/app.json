@@ -3,12 +3,13 @@
     "pages/home/home",
     "pages/product/product",
     "pages/cart/cart",
+    "pages/account/account",
     "pages/settings/settings"
   ],
   "window": {
     "navigationBarBackgroundColor": "#0f4c45",
     "navigationBarTextStyle": "white",
-    "navigationBarTitleText": "Harbor Market",
+    "navigationBarTitleText": "港湾集市",
     "backgroundColor": "#f4f7f5",
     "backgroundTextStyle": "dark"
   },
@@ -25,6 +26,10 @@
       {
         "pagePath": "pages/cart/cart",
         "text": "购物车"
+      },
+      {
+        "pagePath": "pages/account/account",
+        "text": "我的"
       },
       {
         "pagePath": "pages/settings/settings",

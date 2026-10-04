@@ -1,8 +1,9 @@
 # Harbor Market WeChat Mini Program
 
-This native Mini Program is the consumer browsing/cart MVP for Harbor Market. It reads the existing
-public category, product, and media APIs and maintains a device-local cart. It does not yet log a
-customer in, reserve inventory, create an order, collect a shipping address, or invoke WeChat Pay.
+This native Mini Program is the consumer storefront for 港湾集市. It reads the shared public
+category, product, and media APIs, maintains a device-local cart, and supports server-verified
+WeChat customer login. It does not yet reserve inventory, create an order, collect a shipping
+address, or invoke WeChat Pay.
 
 ## Current scope
 
@@ -11,6 +12,12 @@ customer in, reserve inventory, create an order, collect a shipping address, or 
 - View product media, details, SKUs, specifications, price, and stock display state.
 - Select a valid SKU/options combination.
 - Add, update, remove, and clear local cart lines using integer-fen arithmetic.
+- Close the optional login popup and continue browsing as a guest.
+- Sign in through `wx.login`, choose an avatar through WeChat's native picker, and optionally enter a nickname.
+- Restore a verified customer session, edit profile information from **我的**, and log out without clearing the cart.
+
+See [the login integration guide](../docs/WECHAT_LOGIN.md) for the backend configuration and API contract.
+The interface text in both the Mini Program and browser application is Chinese.
 
 The cart subtotal is informational. Only the future backend order service may confirm current price,
 stock, and payable amount.
@@ -136,7 +143,7 @@ npm test
 npm run lint
 ```
 
-These commands validate the credential-free API, catalog, money, and cart modules. A successful Node
+These commands validate the public API, customer sessions, catalog, money, and cart modules. A successful Node
 suite does not replace a DevTools compile and phone-preview smoke test.
 
 ## Production checklist
@@ -166,7 +173,7 @@ Useful official references:
 
 The next backend/admin sequence is:
 
-1. Server-side `wx.login`/`code2Session` and trusted OpenID mapping.
+1. Configure an owned/test AppID and backend AppSecret, and verify the implemented server-side WeChat login on a device.
 2. Server-owned order/payable snapshots and inventory reservation/expiry/release.
 3. Authenticated customer payment creation derived only from the order.
 4. Live WeChat Pay v3 provider adapter and verified callback/query reconciliation.

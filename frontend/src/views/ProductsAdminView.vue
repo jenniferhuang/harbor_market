@@ -43,6 +43,7 @@ import {
   type StockStatus,
 } from '../api/catalog'
 import { ApiError } from '../api/client'
+import { chineseMessage, fieldErrorMessage, fieldLabel } from '../api/messages'
 import { useAuth } from '../auth/useAuth'
 import AppBrand from '../components/AppBrand.vue'
 
@@ -196,7 +197,56 @@ function importStatusLabel(job: ImportJob): string {
     completed: '已完成',
     failed: '失败',
   }
-  return labels[job.status] ?? job.status
+  return Object.hasOwn(labels, job.status) ? labels[job.status]! : '未知状态'
+}
+
+function productStatusLabel(status: ProductStatus): string {
+  return { draft: '草稿', published: '已上架', archived: '已归档' }[status]
+}
+
+function stockStatusLabel(status: StockStatus): string {
+  return { in_stock: '有货', out_of_stock: '售罄', preorder: '预售' }[status]
+}
+
+function imageTypeLabel(type: ProductImageType): string {
+  return { cover: '封面', gallery: '轮播', detail: '详情' }[type]
+}
+
+function cleanupStatusLabel(status: ObjectCleanupStatus): string {
+  return {
+    intent: '已记录', pending: '待处理', processing: '处理中', completed: '已完成', failed: '失败',
+  }[status]
+}
+
+function cleanupReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    product_deleted: '商品已删除', image_deleted: '图片已删除',
+    staging_expiry: '暂存图片到期', staging_cancelled: '暂存图片已取消',
+    image_upload_intent: '图片上传清理', import_promotion_intent: '导入图片清理',
+    staging_promoted: '暂存图片已正式导入',
+  }
+  return Object.hasOwn(labels, reason) ? labels[reason]! : '对象清理'
+}
+
+function cleanupErrorMessage(message: string | null): string {
+  if (!message) return '—'
+  return chineseMessage(message, '图片清理未能完成，请重试或联系管理员查看服务日志。')
+}
+
+function importSummaryLabel(label: string): string {
+  const labels: Record<string, string> = {
+    products: '商品数', skus: '销售规格数', images: '图片数', errors: '错误数',
+    cleanup_queued: '待清理对象数', recovered_stale: '已恢复的中断任务数',
+  }
+  return Object.hasOwn(labels, label) ? labels[label]! : '其他统计'
+}
+
+function importSheetLabel(sheet: string | undefined): string {
+  const labels: Record<string, string> = {
+    Products: '商品', SKUs: '销售规格', Images: '图片',
+    Workbook: '工作簿', ObjectStorage: '图片存储',
+  }
+  return sheet ? Object.hasOwn(labels, sheet) ? labels[sheet]! : '其他工作表' : '—'
 }
 
 async function loadImportJobs() {
@@ -251,7 +301,7 @@ async function retryCleanupJob(job: ObjectCleanupJob) {
     if (updated.status === 'completed') {
       showNotice('success', `清理任务 #${job.id} 已完成。`)
     } else {
-      showNotice('error', `清理任务 #${job.id} 未完成，当前状态：${updated.status}。`)
+      showNotice('error', `清理任务 #${job.id} 未完成，当前状态：${cleanupStatusLabel(updated.status)}。`)
     }
   } catch (error) {
     showNotice('error', messageFor(error, `清理任务 #${job.id} 重试失败。`))
@@ -301,7 +351,7 @@ function messageFor(error: unknown, fallback: string): string {
     const fieldMessages = Object.values(error.fieldErrors)
     return fieldMessages.length ? `${error.message} ${fieldMessages.join('；')}` : error.message
   }
-  return error instanceof Error && error.message ? error.message : fallback
+  return error instanceof Error ? chineseMessage(error.message, fallback) : fallback
 }
 
 function showNotice(kind: NoticeKind, text: string) {
@@ -881,7 +931,7 @@ async function uploadStagingImage() {
     ]
     stagingFile.value = null
     if (stagingInput.value) stagingInput.value.value = ''
-    showNotice('success', '图片已安全暂存；请将下方路径填入 Images 工作表。')
+    showNotice('success', '图片已安全暂存；请将下方路径填入图片工作表（Images）。')
   } catch (error) {
     showNotice('error', messageFor(error, '图片暂存失败。'))
   } finally {
@@ -995,7 +1045,7 @@ onMounted(async () => {
       <section class="admin-title-row">
         <div>
           <p class="eyebrow">
-            Catalog Console
+            商品管理后台
           </p>
           <h1>商品管理</h1>
           <p>维护微信小程序与 H5 共用的商品、图片、类目和批量数据。</p>
@@ -1159,7 +1209,7 @@ onMounted(async () => {
           <div class="editor-card__header">
             <div>
               <p class="eyebrow">
-                {{ editingProductId ? 'Edit product' : 'New product' }}
+                {{ editingProductId ? '编辑商品' : '新建商品' }}
               </p>
               <h3>{{ editingProductId ? '编辑商品' : '新建商品' }}</h3>
             </div>
@@ -1427,7 +1477,7 @@ onMounted(async () => {
                   :alt="image.alt_text || productForm.name"
                 >
                 <div class="image-card__meta">
-                  <span class="image-type">{{ image.image_type }}</span>
+                  <span class="image-type">{{ imageTypeLabel(image.image_type) }}</span>
                   <span>#{{ image.sort_order }}</span>
                 </div>
                 <template v-if="imageEditingId === image.id">
@@ -1594,9 +1644,9 @@ onMounted(async () => {
                   <small>{{ product.product_code }}{{ product.featured ? ' · 推荐' : '' }}</small>
                 </td>
                 <td>{{ product.category?.name ?? categoryById.get(product.category_id)?.name ?? '—' }}</td>
-                <td><span :class="['status-chip', `status-chip--${product.status}`]">{{ product.status }}</span></td>
+                <td><span :class="['status-chip', `status-chip--${product.status}`]">{{ productStatusLabel(product.status) }}</span></td>
                 <td>¥{{ centsToYuan(product.base_price_cents) }}</td>
-                <td>{{ product.stock_status }} · {{ product.inventory_count }}</td>
+                <td>{{ stockStatusLabel(product.stock_status) }} · {{ product.inventory_count ?? '不限' }}</td>
                 <td class="table-actions">
                   <button
                     class="table-icon-button"
@@ -1918,7 +1968,7 @@ onMounted(async () => {
               aria-hidden="true"
             /></span>
             <h3>为新商品暂存图片</h3>
-            <p>输入 Excel 中的商品编码并上传图片，系统会生成受控的 staging 路径。</p>
+            <p>输入 Excel 中的商品编码并上传图片，系统会生成受控的暂存路径。</p>
             <label class="admin-field">
               <span>商品编码</span>
               <input
@@ -1962,7 +2012,7 @@ onMounted(async () => {
                 class="staged-image-item"
               >
                 <label class="admin-field">
-                  <span>Images.object_key</span>
+                  <span>图片路径（Images.object_key）</span>
                   <input
                     class="staged-image-path"
                     readonly
@@ -2075,7 +2125,7 @@ onMounted(async () => {
           <div class="workspace-heading workspace-heading--compact">
             <div>
               <p class="eyebrow">
-                Import result
+                导入结果
               </p>
               <h3 id="import-result-title">
                 {{ importResult.dry_run ? '预检结果' : '导入结果' }}
@@ -2094,7 +2144,7 @@ onMounted(async () => {
               v-for="[label, value] in importSummary"
               :key="label"
             >
-              <dt>{{ label }}</dt><dd>{{ value }}</dd>
+              <dt>{{ importSummaryLabel(label) }}</dt><dd>{{ value }}</dd>
             </div>
           </dl>
           <div
@@ -2108,7 +2158,7 @@ onMounted(async () => {
                   v-for="(issue, index) in importResult.errors"
                   :key="`${issue.sheet}-${issue.row}-${issue.field}-${index}`"
                 >
-                  <td>{{ issue.sheet ?? '—' }}</td><td>{{ issue.row ?? '—' }}</td><td>{{ issue.field ?? '—' }}</td><td>{{ issue.message }}</td>
+                  <td>{{ importSheetLabel(issue.sheet) }}</td><td>{{ issue.row ?? '—' }}</td><td>{{ fieldLabel(issue.field) }}</td><td>{{ fieldErrorMessage(issue.field ?? 'request', issue.message) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -2124,7 +2174,7 @@ onMounted(async () => {
         <section class="import-result" aria-labelledby="recent-import-title">
           <div class="workspace-heading workspace-heading--compact">
             <div>
-              <p class="eyebrow">Import history</p>
+              <p class="eyebrow">导入记录</p>
               <h3 id="recent-import-title">最近导入任务</h3>
             </div>
             <button
@@ -2176,7 +2226,7 @@ onMounted(async () => {
           <div class="workspace-heading workspace-heading--compact">
             <div>
               <p class="eyebrow">
-                Import job detail
+                导入任务详情
               </p>
               <h3 id="import-job-detail-title">
                 任务 #{{ selectedImportJob.id }} · {{ importStatusLabel(selectedImportJob) }}
@@ -2203,7 +2253,7 @@ onMounted(async () => {
               v-for="[label, value] in selectedImportSummary"
               :key="label"
             >
-              <dt>{{ label }}</dt><dd>{{ value }}</dd>
+              <dt>{{ importSummaryLabel(label) }}</dt><dd>{{ value }}</dd>
             </div>
           </dl>
           <div
@@ -2217,10 +2267,10 @@ onMounted(async () => {
                   v-for="(issue, index) in selectedImportJob.errors"
                   :key="`${issue.sheet}-${issue.row}-${issue.field}-${index}`"
                 >
-                  <td>{{ issue.sheet ?? '—' }}</td>
+                  <td>{{ importSheetLabel(issue.sheet) }}</td>
                   <td>{{ issue.row ?? '—' }}</td>
-                  <td>{{ issue.field ?? '—' }}</td>
-                  <td>{{ issue.message }}</td>
+                  <td>{{ fieldLabel(issue.field) }}</td>
+                  <td>{{ fieldErrorMessage(issue.field ?? 'request', issue.message) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -2240,7 +2290,7 @@ onMounted(async () => {
           <div class="workspace-heading workspace-heading--compact">
             <div>
               <p class="eyebrow">
-                Object cleanup
+                对象清理
               </p>
               <h3 id="cleanup-jobs-title">
                 对象清理任务
@@ -2289,10 +2339,10 @@ onMounted(async () => {
                 >
                   <td>#{{ job.id }}</td>
                   <td><code>{{ job.object_key }}</code></td>
-                  <td>{{ job.reason }}</td>
-                  <td>{{ job.status }}</td>
+                  <td>{{ cleanupReasonLabel(job.reason) }}</td>
+                  <td>{{ cleanupStatusLabel(job.status) }}</td>
                   <td>{{ job.attempts }}</td>
-                  <td>{{ job.last_error || '—' }}</td>
+                  <td>{{ cleanupErrorMessage(job.last_error) }}</td>
                   <td>
                     <button
                       v-if="job.status === 'failed'"

@@ -1,11 +1,11 @@
 <view class="page-shell settings-page" aria-role="main">
   <view class="settings-heading">
     <text class="page-heading">连接设置</text>
-    <text class="page-intro">配置 Harbor Market 后端的 HTTPS 公网入口。</text>
+    <text class="page-intro">配置港湾集市服务的连接地址。</text>
   </view>
 
   <view class="surface settings-card">
-    <text class="settings-card__title">API 基础地址</text>
+    <text class="settings-card__title">接口基础地址</text>
     <text class="settings-card__help">
       例如 https://shop-api.example.cn。不要填写 /api/v1，也不要以斜杠结尾。
     </text>
@@ -16,10 +16,10 @@
       maxlength="240"
       placeholder="https://shop-api.example.cn"
       bindinput="onBaseUrlInput"
-      aria-label="API 基础地址"
+      aria-label="接口基础地址"
     />
 
-    <view class="settings-actions" aria-role="group" aria-label="API 地址操作">
+    <view class="settings-actions" aria-role="group" aria-label="接口地址操作">
       <button
         class="secondary-button settings-actions__button"
         disabled="{{testing || saving}}"
@@ -47,7 +47,7 @@
     </view>
     <view class="requirement-row">
       <text class="requirement-row__number">2</text>
-      <text>域名必须添加到小程序后台的 request 合法域名。</text>
+      <text>域名必须添加到小程序后台的请求合法域名；头像服务还需要配置上传和下载合法域名。</text>
     </view>
     <view class="requirement-row">
       <text class="requirement-row__number">3</text>
@@ -55,7 +55,7 @@
     </view>
     <view class="requirement-row">
       <text class="requirement-row__number">4</text>
-      <text>当前版本只有目录与本机购物车，不会创建订单或发起支付。</text>
+      <text>微信登录需要小程序已配置真实应用身份。当前版本支持目录与本机购物车，订单结算和支付尚未开放。</text>
     </view>
   </view>
 

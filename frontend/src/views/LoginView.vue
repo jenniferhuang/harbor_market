@@ -36,8 +36,8 @@ watch(password, () => {
 })
 
 function validate(): boolean {
-  errors.username = username.value.trim() ? undefined : 'Enter your username.'
-  errors.password = password.value ? undefined : 'Enter your password.'
+  errors.username = username.value.trim() ? undefined : '请输入用户名。'
+  errors.password = password.value ? undefined : '请输入密码。'
   return !errors.username && !errors.password
 }
 
@@ -51,12 +51,12 @@ function destinationAfterLogin(): string {
 
 function applyApiError(error: unknown) {
   if (!(error instanceof ApiError)) {
-    formError.value = 'Sign in could not be completed. Please try again.'
+    formError.value = '登录未能完成，请稍后重试。'
     return
   }
 
   if (error.status === 401) {
-    formError.value = 'Username or password is incorrect.'
+    formError.value = '用户名或密码不正确。'
     return
   }
 
@@ -85,23 +85,23 @@ async function submit() {
 </script>
 
 <template>
-  <AuthLayout title="Sign in" description="Welcome back. Enter your account details to continue.">
+  <AuthLayout title="登录" description="欢迎回来，请输入账号信息以继续。">
     <p v-if="registrationSucceeded" class="notice notice--success" role="status">
-      Account created. You can sign in now.
+      账号已创建，现在可以登录。
     </p>
     <p
       v-if="sessionCheckFailed"
       class="notice notice--error"
       role="alert"
     >
-      We could not verify your existing session. Check the service connection, then sign in again.
+      无法验证当前登录状态，请检查服务连接后重新登录。
     </p>
 
     <form class="auth-form" novalidate @submit.prevent="submit">
       <TextField
         id="login-username"
         v-model="username"
-        label="Username"
+        label="用户名"
         autocomplete="username"
         :error="errors.username"
         :disabled="isSubmitting"
@@ -109,7 +109,7 @@ async function submit() {
       <PasswordField
         id="login-password"
         v-model="password"
-        label="Password"
+        label="密码"
         autocomplete="current-password"
         :error="errors.password"
         :disabled="isSubmitting"
@@ -120,13 +120,13 @@ async function submit() {
       <button class="primary-button" type="submit" :disabled="isSubmitting">
         <LoaderCircle v-if="isSubmitting" class="spin" :size="18" aria-hidden="true" />
         <LogIn v-else :size="18" aria-hidden="true" />
-        <span>{{ isSubmitting ? 'Signing in...' : 'Sign in' }}</span>
+        <span>{{ isSubmitting ? '正在登录…' : '登录' }}</span>
       </button>
     </form>
 
     <p class="auth-panel__alternate">
-      New to Harbor Market?
-      <RouterLink to="/register">Create account</RouterLink>
+      还没有港湾集市账号？
+      <RouterLink to="/register">创建账号</RouterLink>
     </p>
   </AuthLayout>
 </template>

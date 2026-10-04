@@ -1,5 +1,6 @@
 const { fetchCategories } = require('../../api/catalog')
 const { getApiBaseUrl, setApiBaseUrl } = require('../../api/client')
+const { resetSessionForApiChange } = require('../../state/auth-store')
 
 function messageFor(error, fallback) {
   return error && typeof error.message === 'string' && error.message ? error.message : fallback
@@ -67,12 +68,14 @@ Page({
     if (this.data.testing || this.data.saving) return
     this.setData({ saving: true, statusKind: '', statusMessage: '' })
     try {
+      const previousBaseUrl = getApiBaseUrl()
       const savedBaseUrl = setApiBaseUrl(this.data.baseUrlInput)
+      if (savedBaseUrl !== previousBaseUrl) resetSessionForApiChange()
       this.setData({
         savedBaseUrl,
         baseUrlInput: savedBaseUrl,
         statusKind: 'success',
-        statusMessage: 'API 地址已保存到当前设备。返回选购页即可重新加载目录。',
+        statusMessage: '接口地址已保存到当前设备。返回选购页即可重新加载目录。',
       })
     } catch (error) {
       this.setData({

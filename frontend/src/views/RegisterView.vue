@@ -40,12 +40,12 @@ watch(confirmPassword, () => {
 })
 
 function validate(): boolean {
-  errors.username = username.value.trim() ? undefined : 'Choose a username.'
-  errors.password = password.value ? undefined : 'Choose a password.'
-  errors.confirmPassword = confirmPassword.value ? undefined : 'Confirm your password.'
+  errors.username = username.value.trim() ? undefined : '请输入用户名。'
+  errors.password = password.value ? undefined : '请输入密码。'
+  errors.confirmPassword = confirmPassword.value ? undefined : '请再次输入密码。'
 
   if (password.value && confirmPassword.value && password.value !== confirmPassword.value) {
-    errors.confirmPassword = 'Passwords do not match.'
+    errors.confirmPassword = '两次输入的密码不一致。'
   }
 
   return !errors.username && !errors.password && !errors.confirmPassword
@@ -53,12 +53,12 @@ function validate(): boolean {
 
 function applyApiError(error: unknown) {
   if (!(error instanceof ApiError)) {
-    formError.value = 'Your account could not be created. Please try again.'
+    formError.value = '账号创建失败，请稍后重试。'
     return
   }
 
   if (error.status === 409) {
-    errors.username = 'That username is already taken.'
+    errors.username = '该用户名已被注册。'
     return
   }
 
@@ -86,12 +86,12 @@ async function submit() {
 </script>
 
 <template>
-  <AuthLayout title="Create account" description="Set up your username and password to get started.">
+  <AuthLayout title="创建账号" description="设置用户名和密码，开始使用港湾集市。">
     <form class="auth-form" novalidate @submit.prevent="submit">
       <TextField
         id="register-username"
         v-model="username"
-        label="Username"
+        label="用户名"
         autocomplete="username"
         :error="errors.username"
         :disabled="isSubmitting"
@@ -99,7 +99,7 @@ async function submit() {
       <PasswordField
         id="register-password"
         v-model="password"
-        label="Password"
+        label="密码"
         autocomplete="new-password"
         :error="errors.password"
         :disabled="isSubmitting"
@@ -107,7 +107,7 @@ async function submit() {
       <PasswordField
         id="register-confirm-password"
         v-model="confirmPassword"
-        label="Confirm password"
+        label="确认密码"
         autocomplete="new-password"
         :error="errors.confirmPassword"
         :disabled="isSubmitting"
@@ -118,13 +118,13 @@ async function submit() {
       <button class="primary-button" type="submit" :disabled="isSubmitting">
         <LoaderCircle v-if="isSubmitting" class="spin" :size="18" aria-hidden="true" />
         <UserPlus v-else :size="18" aria-hidden="true" />
-        <span>{{ isSubmitting ? 'Creating account...' : 'Create account' }}</span>
+        <span>{{ isSubmitting ? '正在创建账号…' : '创建账号' }}</span>
       </button>
     </form>
 
     <p class="auth-panel__alternate">
-      Already have an account?
-      <RouterLink to="/login">Sign in</RouterLink>
+      已有账号？
+      <RouterLink to="/login">登录</RouterLink>
     </p>
   </AuthLayout>
 </template>

@@ -1,5 +1,7 @@
 'use strict'
 
+const path = require('node:path')
+
 function storageWx(overrides = {}) {
   const storage = new Map()
   return {
@@ -13,6 +15,10 @@ function storageWx(overrides = {}) {
 
 function freshClient(wxMock) {
   vi.resetModules()
+  const sourceRoot = `${path.resolve(__dirname, '../src')}${path.sep}`
+  for (const modulePath of Object.keys(require.cache)) {
+    if (modulePath.startsWith(sourceRoot)) delete require.cache[modulePath]
+  }
   global.wx = wxMock
   return require('../src/api/client')
 }
@@ -141,5 +147,28 @@ describe('Mini Program API client', () => {
 
     await expect(client.request('/api/v1/health')).rejects.toMatchObject({ status: 0 })
     await expect(client.request('https://evil.example')).rejects.toBeInstanceOf(TypeError)
+  })
+
+  it('localizes English backend messages and field validation while retaining safe Chinese messages', () => {
+    const client = freshClient(storageWx())
+    const cases = [
+      [401, 'Invalid credentials', '登录状态已失效，请重新登录。'],
+      [429, 'Too many attempts', '操作过于频繁，请稍后重试。'],
+      [422, 'Validation failed', '请求未能完成，请稍后重试。'],
+      [503, '服务器内部连接地址 secret', '服务暂时不可用，请稍后重试。'],
+      [403, '微信登录尚未配置，请稍后重试。', '微信登录尚未配置，请稍后重试。'],
+    ]
+    for (const [status, message, expectedMessage] of cases) {
+      expect(() => client.parseApiResponse(status, { error: { message } })).toThrow(expectedMessage)
+    }
+    try {
+      client.parseApiResponse(422, { error: {
+        message: '资料校验失败',
+        fields: [{ field: 'nickname', message: 'String too long' }, { field: 'avatar', message: '图片格式不支持' }],
+      } })
+      throw new Error('Expected API validation error')
+    } catch (error) {
+      expect(error.fieldErrors).toEqual({ nickname: '请检查填写内容。', avatar: '图片格式不支持' })
+    }
   })
 })

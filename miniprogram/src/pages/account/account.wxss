@@ -1,0 +1,144 @@
+.account-page {
+  padding-top: 40rpx;
+}
+
+.account-eyebrow {
+  display: block;
+  margin-bottom: 12rpx;
+  color: #0f6b5f;
+  font-size: 23rpx;
+  font-weight: 750;
+  letter-spacing: 4rpx;
+}
+
+.profile-card {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 26rpx;
+  margin-top: 32rpx;
+  padding: 34rpx 28rpx;
+}
+
+.profile-card__avatar {
+  width: 112rpx;
+  height: 112rpx;
+  flex-shrink: 0;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  padding: 0;
+  background: #e8f1ec;
+}
+
+.profile-card__image,
+.profile-card__placeholder {
+  display: block;
+  width: 112rpx;
+  height: 112rpx;
+}
+
+.profile-card__placeholder {
+  position: relative;
+}
+
+.profile-card__head {
+  position: absolute;
+  top: 22rpx;
+  left: 37rpx;
+  width: 38rpx;
+  height: 42rpx;
+  border-radius: 50%;
+  background: #a6bdb4;
+}
+
+.profile-card__shoulders {
+  position: absolute;
+  top: 70rpx;
+  left: 18rpx;
+  width: 76rpx;
+  height: 54rpx;
+  border-radius: 40rpx 40rpx 0 0;
+  background: #a6bdb4;
+}
+
+.profile-card__copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.profile-card__name,
+.profile-card__status {
+  display: block;
+}
+
+.profile-card__name {
+  overflow-wrap: break-word;
+  font-size: 32rpx;
+  font-weight: 650;
+}
+
+.profile-card__status {
+  margin-top: 10rpx;
+  color: #6a7b77;
+  font-size: 25rpx;
+  line-height: 1.7;
+}
+
+.profile-card__action {
+  width: 100%;
+  margin: 8rpx 0 0;
+}
+
+.account-actions {
+  margin-top: 28rpx;
+  overflow: hidden;
+  padding: 0 28rpx;
+}
+
+.account-row {
+  display: flex;
+  width: 100%;
+  min-height: 100rpx;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  border-radius: 0;
+  padding: 14rpx 0;
+  background: #ffffff;
+  color: #17332f;
+  font-size: 28rpx;
+  text-align: left;
+}
+
+.account-row + .account-row {
+  border-top: 1rpx solid #e3ebe7;
+}
+
+.account-row__arrow {
+  color: #7a9085;
+  font-size: 40rpx;
+}
+
+.account-message {
+  margin-top: 24rpx;
+  border-radius: 16rpx;
+  padding: 22rpx;
+  background: #fff3f1;
+  color: #9d352c;
+  font-size: 26rpx;
+  line-height: 1.65;
+}
+
+.account-note {
+  display: block;
+  margin: 28rpx 8rpx 0;
+  color: #788981;
+  font-size: 24rpx;
+  line-height: 1.7;
+}
+
+.logout-button {
+  width: 100%;
+  margin-top: 30rpx;
+}

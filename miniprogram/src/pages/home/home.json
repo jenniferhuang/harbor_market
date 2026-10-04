@@ -1,8 +1,9 @@
 {
-  "navigationBarTitleText": "Harbor Market",
+  "navigationBarTitleText": "港湾集市",
   "enablePullDownRefresh": true,
   "backgroundTextStyle": "dark",
   "usingComponents": {
-    "product-card": "/components/product-card/product-card"
+    "product-card": "/components/product-card/product-card",
+    "login-dialog": "/components/login-dialog/login-dialog"
   }
 }

@@ -113,20 +113,23 @@ grep -Eo 'https://[-a-z0-9]+\.trycloudflare\.com' \
 
 ## WeChat Mini Program MVP
 
-The native Mini Program under `miniprogram/` currently covers anonymous catalog browsing and a
-device-local cart. Import that directory into WeChat DevTools with the committed `touristappid` for
+The native Mini Program under `miniprogram/` covers anonymous catalog browsing, a device-local cart,
+and optional WeChat customer login/profile editing. The shared backend verifies WeChat login codes
+and issues customer sessions independently of browser administrator accounts. Import that directory
+into WeChat DevTools with the committed `touristappid` for
 a local simulator entry; its API origin defaults to `http://127.0.0.1:8080`. A phone preview QR
 requires an official Test AppID or the owned AppID plus an authorized WeChat developer. The Test or
 real AppID should be selected through an uncommitted `project.private.config.json`.
 
 This phase does not create orders or invoke WeChat Pay. Before public checkout, Harbor Market still
-needs server-side WeChat identity/OpenID mapping, order and inventory-reservation ownership,
+needs order and inventory-reservation ownership,
 customer payment creation, admin fulfillment/refunds, and WeChat order-delivery reporting. Public
 release also requires a certified owned account, Mini Program filing, an ICP-filed HTTPS API legal
 domain, an accurate privacy guide, category review, and WeChat review/publication.
 
 See `miniprogram/README.md` for local setup and QR gates, and
 `.spec-workflow/specs/wechat-miniprogram-mvp/` for the complete requirements and critical path.
+See [WeChat login integration](docs/WECHAT_LOGIN.md) for the implemented login flow and real credentials setup.
 
 ## Mock-first payments
 
