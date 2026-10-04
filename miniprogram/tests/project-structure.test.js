@@ -34,13 +34,22 @@ describe('native Mini Program project structure', () => {
       compileType: 'miniprogram',
       miniprogramRoot: 'src/',
     })
-    expect(app.pages).toEqual([
+    expect(app.pages[0]).toBe('pages/home/home')
+    expect(app.pages).toEqual(expect.arrayContaining([
       'pages/home/home',
+      'pages/catalog/catalog',
+      'pages/search/search',
       'pages/product/product',
       'pages/cart/cart',
       'pages/account/account',
       'pages/settings/settings',
-    ])
+      'pages/favorites/favorites',
+      'pages/coupons/coupons',
+      'pages/orders/orders',
+      'pages/merchant/merchant',
+    ]))
+    expect(new Set(app.pages).size).toBe(app.pages.length)
+    expect(app.tabBar.list.map((tab) => tab.text)).toEqual(['首页', '商品选购', '购物车', '我'])
     for (const page of app.pages) expectMiniProgramUnit(path.join(sourceRoot, page))
 
     const declaredPages = new Set(app.pages)
@@ -84,6 +93,7 @@ describe('native Mini Program project structure', () => {
       'swiper-item',
       'text',
       'view',
+      'video',
     ])
     const voidElements = new Set(['image', 'input'])
 
@@ -132,6 +142,6 @@ describe('native Mini Program project structure', () => {
     const source = fs.readFileSync(`${basePath}.js`, 'utf8')
     expect(source).not.toMatch(/getUserInfo|getUserProfile|open-type="getUserInfo"/)
     const app = readJson(path.join(sourceRoot, 'app.json'))
-    expect(app.tabBar.list).toContainEqual({ pagePath: 'pages/account/account', text: '我的' })
+    expect(app.tabBar.list).toContainEqual(expect.objectContaining({ pagePath: 'pages/account/account', text: '我' }))
   })
 })

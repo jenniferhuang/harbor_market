@@ -224,6 +224,10 @@ function cleanupReasonLabel(reason: string): string {
     staging_expiry: '暂存图片到期', staging_cancelled: '暂存图片已取消',
     image_upload_intent: '图片上传清理', import_promotion_intent: '导入图片清理',
     staging_promoted: '暂存图片已正式导入',
+    mini_avatar_upload_intent: '微信头像上传清理', mini_avatar_replaced: '微信头像已替换',
+    shop_media_upload_intent: '首页资料上传清理', shop_media_replaced: '首页资料已替换',
+    shop_media_deleted: '首页资料已删除',
+    shop_category_deleted: '分类代表图随类目删除',
   }
   return Object.hasOwn(labels, reason) ? labels[reason]! : '对象清理'
 }
@@ -1017,6 +1021,12 @@ onMounted(async () => {
               :size="16"
               aria-hidden="true"
             /> 返回首页
+          </RouterLink>
+          <RouterLink
+            class="text-link"
+            :to="{ name: 'admin-shop' }"
+          >
+            商家与首页管理
           </RouterLink>
           <button
             class="secondary-button"

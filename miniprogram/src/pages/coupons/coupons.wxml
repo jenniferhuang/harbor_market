@@ -1,0 +1,15 @@
+<view class="page-shell">
+  <text class="page-heading">我的优惠券</text>
+  <view wx:if="{{!loggedIn}}" class="surface status-panel"><text class="status-panel__title">登录后查看优惠券</text><button class="primary-button status-panel__action" bindtap="login">去登录</button></view>
+  <block wx:else>
+    <view wx:if="{{loading}}" class="muted list-message" aria-role="status">正在加载优惠券…</view>
+    <view wx:if="{{errorMessage}}" class="error-message" aria-role="alert"><text>{{errorMessage}}</text><button class="secondary-button" bindtap="loadItems">重试</button></view>
+    <view wx:if="{{!loading && !items.length && !errorMessage}}" class="surface status-panel"><text class="status-panel__title">还没有领取优惠券</text><button class="secondary-button status-panel__action" bindtap="home">到首页看看</button></view>
+    <view wx:for="{{items}}" wx:key="coupon_id" class="surface coupon">
+      <view class="coupon__amount"><text>{{item.discount}}</text><text class="coupon__threshold">满 {{item.threshold}} 可用</text></view>
+      <view class="coupon__copy"><text class="coupon__title">{{item.title}}</text><text class="muted">{{item.statusLabel}}</text><text class="coupon__expiry">{{item.expiresLabel == '长期有效' ? item.expiresLabel : '有效期至 ' + item.expiresLabel}}</text></view>
+    </view>
+    <text wx:if="{{items.length}}" class="coupon-note">优惠券已保存在账户中，结算开放后按活动规则使用。</text>
+    <button wx:if="{{hasMore}}" class="secondary-button load-more" disabled="{{loading}}" bindtap="loadMore">{{loading ? '正在加载…' : '加载更多'}}</button>
+  </block>
+</view>

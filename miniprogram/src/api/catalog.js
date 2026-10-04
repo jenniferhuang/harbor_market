@@ -78,4 +78,5 @@ module.exports = {
   fetchCategories,
   fetchProduct,
   fetchProducts,
+  normalizeProduct,
 }

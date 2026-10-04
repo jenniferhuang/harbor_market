@@ -118,7 +118,7 @@ Page({
   },
 
   continueShopping() {
-    wx.switchTab({ url: '/pages/home/home' })
+    wx.switchTab({ url: '/pages/catalog/catalog' })
   },
 
   explainCheckout() {

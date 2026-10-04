@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, LoaderCircle, LogOut, PackageSearch, UserRound } from 'lucide-vue-next'
+import { Check, LoaderCircle, LogOut, PackageSearch, Store, UserRound } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '../api/client'
@@ -106,12 +106,28 @@ async function logout() {
           <span aria-hidden="true">→</span>
         </RouterLink>
 
+        <RouterLink
+          v-if="auth.isAdmin"
+          class="admin-entry"
+          :to="{ name: 'admin-shop' }"
+        >
+          <span
+            class="admin-entry__icon"
+            aria-hidden="true"
+          ><Store :size="23" /></span>
+          <span>
+            <strong>商家与首页管理</strong>
+            <small>维护商家信息、首页资料、优惠券与已成交订单</small>
+          </span>
+          <span aria-hidden="true">→</span>
+        </RouterLink>
+
         <p
           v-if="accessChanged"
           class="notice notice--error home-page__error"
           role="alert"
         >
-          您的管理员权限已变更，商品管理页面已关闭。
+          您的管理员权限已变更，管理页面已关闭。
         </p>
 
         <p

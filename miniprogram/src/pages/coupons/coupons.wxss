@@ -1,0 +1,11 @@
+.coupon { display: flex; gap: 28rpx; margin-top: 24rpx; padding: 28rpx; }
+.coupon__amount { min-width: 180rpx; color: #0f6b5f; font-size: 42rpx; font-weight: 700; }
+.coupon__threshold, .coupon__expiry { display: block; margin-top: 12rpx; color: #60716d; font-size: 24rpx; font-weight: 400; }
+.coupon__copy { display: flex; flex-direction: column; gap: 8rpx; }
+.coupon__title { color: #17332f; font-weight: 650; }
+.coupon-note { display: block; margin-top: 24rpx; color: #60716d; font-size: 25rpx; line-height: 1.6; }
+.list-message { margin-top: 28rpx; }
+.error-message { margin-top: 24rpx; padding: 20rpx; border-radius: 16rpx; background: #fff3f1; color: #9d352c; }
+.error-message button { margin-top: 16rpx; }
+
+.load-more { margin-top: 28rpx; }

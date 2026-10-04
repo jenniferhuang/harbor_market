@@ -90,6 +90,7 @@ async function renderView() {
       { path: '/', name: 'home', component: { template: '<p>Home</p>' } },
       { path: '/login', name: 'login', component: { template: '<p>Login</p>' } },
       { path: '/admin/products', name: 'admin-products', component: ProductsAdminView },
+      { path: '/admin/shop', name: 'admin-shop', component: { template: '<p>商家与首页管理</p>' } },
     ],
   })
   await router.push('/admin/products')

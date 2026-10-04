@@ -1,0 +1,11 @@
+.order { margin-top: 24rpx; padding: 28rpx; }
+.order__heading, .order__line { display: flex; justify-content: space-between; gap: 20rpx; }
+.order__heading { color: #0f6b5f; font-size: 26rpx; }
+.order__reference { display: block; margin-top: 14rpx; color: #60716d; font-size: 23rpx; }
+.order__line { margin: 0; border-bottom: 1rpx solid #e4ece8; padding: 24rpx 0; background: transparent; text-align: left; font-size: 26rpx; line-height: 1.5; }
+.order__total { display: block; margin-top: 20rpx; text-align: right; font-weight: 650; }
+.list-message { margin-top: 28rpx; }
+.error-message { margin-top: 24rpx; padding: 20rpx; border-radius: 16rpx; background: #fff3f1; color: #9d352c; }
+.error-message button { margin-top: 16rpx; }
+
+.load-more { margin-top: 28rpx; }

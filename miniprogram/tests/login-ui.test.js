@@ -46,6 +46,18 @@ function setup(overrides = {}) {
       } else if (options.url.endsWith('/profile')) {
         customer = { ...customer, nickname: options.data.nickname }
         success(options, customer)
+      } else if (options.url.endsWith('/shop/home')) {
+        success(options, {
+          store: { name: '港湾集市', phone: '', address: '', announcement_image_url: '' },
+          carousel: [], coupons: [],
+          categories: [{ code: 'COFFEE', name: '咖啡', image_url: '' }],
+          hot_products: [{ product: PRODUCT, paid_quantity: 0 }],
+          hot_products_source: 'newest',
+        })
+      } else if (options.url.endsWith('/mini/shop/coupons')) {
+        success(options, [])
+      } else if (options.url.endsWith('/mini/shop/me')) {
+        success(options, { can_manage_store: false })
       } else if (options.url.endsWith('/categories')) {
         success(options, [{ code: 'COFFEE', name: '咖啡' }])
       } else if (options.url.includes('/catalog/products?')) {
@@ -129,7 +141,7 @@ describe('native customer login UI behavior', () => {
     const dialog = mountDialog(home)
     expect(home.data.loginVisible).toBe(true)
     await vi.waitFor(() => expect(home.data.loading).toBe(false))
-    expect(home.data.products[0]).toMatchObject({ name: '苹果美式', productCode: 'APPLE' })
+    expect(home.data.hotProducts[0]).toMatchObject({ name: '苹果美式', productCode: 'APPLE' })
 
     dialog.close()
     expect(home.data.loginVisible).toBe(false)

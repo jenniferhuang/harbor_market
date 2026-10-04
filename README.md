@@ -39,7 +39,8 @@ docker compose exec backend python -m app.cli promote-admin YOUR_USERNAME
 
 The development application is configured to use the persistent database on
 `aqa01-i01-ocr01.int.rclabenv.com`: PostgreSQL 16.13, database `xiangyue_xiamen`, and application
-role `harbor_market`. Migrations are at `0004_track_promoted_staging_keys`, with 12 public tables.
+role `harbor_market`. This development branch includes migration
+`0006_add_shop_homepage_commerce`; see the database runbook for the verified running schema.
 Both preview accounts were preserved, including one administrator. MinIO and existing media
 remain local.
 
@@ -121,7 +122,11 @@ a local simulator entry; its API origin defaults to `http://127.0.0.1:8080`. A p
 requires an official Test AppID or the owned AppID plus an authorized WeChat developer. The Test or
 real AppID should be selected through an uncommitted `project.private.config.json`.
 
-This phase does not create orders or invoke WeChat Pay. Before public checkout, Harbor Market still
+The homepage includes real search counts, mixed promotional media, coupons, category images,
+store notices, favorites, and sales rankings. Administrators configure it at `/admin/shop` and
+can record completed historical orders. See [homepage configuration](docs/HOMEPAGE_IMPLEMENTATION.md).
+
+This phase does not submit checkout orders or invoke WeChat Pay. Before public checkout, Harbor Market still
 needs order and inventory-reservation ownership,
 customer payment creation, admin fulfillment/refunds, and WeChat order-delivery reporting. Public
 release also requires a certified owned account, Mini Program filing, an ICP-filed HTTPS API legal

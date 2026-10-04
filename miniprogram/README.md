@@ -14,7 +14,16 @@ address, or invoke WeChat Pay.
 - Add, update, remove, and clear local cart lines using integer-fen arithmetic.
 - Close the optional login popup and continue browsing as a guest.
 - Sign in through `wx.login`, choose an avatar through WeChat's native picker, and optionally enter a nickname.
-- Restore a verified customer session, edit profile information from **我的**, and log out without clearing the cart.
+- Restore a verified customer session, edit profile information from **我**, and log out without clearing the cart.
+- Browse the six-module homepage, mixed image/video carousel, category representatives, store notice,
+  real search rankings, and sales-based recommendations.
+- Claim configured coupons, favorite products, and view the current customer's recorded purchases.
+- Let the administrator-bound shop owner edit store information and upload the announcement image.
+
+The bottom tabs are **首页 / 商品选购 / 购物车 / 我**. See
+[homepage implementation and configuration](../docs/HOMEPAGE_IMPLEMENTATION.md) for the browser
+management entry and feature boundaries. Purchase records are administrator-entered historical
+sales; the Mini Program still cannot submit checkout orders.
 
 See [the login integration guide](../docs/WECHAT_LOGIN.md) for the backend configuration and API contract.
 The interface text in both the Mini Program and browser application is Chinese.
@@ -51,7 +60,7 @@ ready.
 ## API base URL
 
 The client defaults to the origin `http://127.0.0.1:8080`. To use another backend, open the Mini
-Program's **设置 → 连接设置**, enter an absolute HTTP(S) origin without `/api/v1`, select **测试连接**,
+Program's **我 → 连接设置**, enter an absolute HTTP(S) origin without `/api/v1`, select **测试连接**,
 and then select **保存地址**. The validated value is stored on the current device.
 
 The programmatic equivalent uses the central API client before any request, for example from

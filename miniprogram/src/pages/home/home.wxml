@@ -1,112 +1,66 @@
 <view class="page-shell home-page" aria-role="main">
-  <view class="hero" aria-label="港湾集市商品目录">
-    <view class="hero__topline">
-      <text class="hero__eyebrow">港湾集市</text>
-      <button class="hero-account" disabled="{{authBusy}}" bindtap="openAccountDialog" aria-label="{{authStatus == 'authenticated' ? '编辑头像和昵称' : '打开微信登录'}}">
-        <image wx:if="{{avatarPath}}" class="hero-account__avatar" src="{{avatarPath}}" mode="aspectFill" binderror="onAvatarError" />
-        <view wx:else class="hero-account__placeholder" aria-hidden="true"><view class="hero-account__head"></view><view class="hero-account__shoulders"></view></view>
-        <text class="hero-account__label">{{authStatus == 'authenticated' ? customerName : (authStatus == 'restoring' ? '请稍候' : '登录')}}</text>
-      </button>
-    </view>
-    <text id="home-title" class="page-heading">选一份今日好物</text>
-    <text class="page-intro">浏览已上架商品。价格和库存以服务端目录为准。</text>
-  </view>
-
-  <view class="search surface" aria-role="search" aria-label="搜索商品">
-    <input
-      class="search__input"
-      value="{{queryInput}}"
-      placeholder="搜索商品名称或编码"
-      confirm-type="search"
-      maxlength="160"
-      bindinput="onQueryInput"
-      bindconfirm="applySearch"
-      aria-label="商品搜索关键词"
-    />
-    <button
-      wx:if="{{queryInput || appliedQuery}}"
-      class="search__clear"
-      bindtap="clearSearch"
-      aria-label="清空搜索"
-    >清空</button>
-    <button class="search__submit" bindtap="applySearch" aria-label="搜索商品">
-      搜索
+  <view class="search-topline">
+    <button class="search-entry surface" bindtap="openSearch" aria-label="搜索全部商品">
+      <view class="search-entry__icon" aria-hidden="true"></view><text class="search-entry__hint">搜索商品名称或编码</text><text class="search-entry__action">搜索</text>
+    </button>
+    <button class="home-account" disabled="{{authBusy}}" bindtap="openAccountDialog" aria-label="{{authStatus == 'authenticated' ? '编辑头像和昵称' : '打开微信登录'}}">
+      <image wx:if="{{avatarPath}}" class="home-account__avatar" src="{{avatarPath}}" mode="aspectFill" binderror="onAvatarError" />
+      <view wx:else class="home-account__placeholder" aria-hidden="true"><view class="home-account__head"></view><view class="home-account__shoulders"></view></view>
+      <text class="home-account__label">{{authStatus == 'authenticated' ? customerName : (authStatus == 'restoring' ? '请稍候' : '登录')}}</text>
     </button>
   </view>
 
-  <scroll-view class="category-strip" scroll-x="true" enhanced="true" show-scrollbar="false">
-    <view class="category-strip__inner" aria-role="group" aria-label="商品类目筛选">
-      <button
-        class="category-chip {{selectedCategory == '' ? 'category-chip--active' : ''}}"
-        data-code=""
-        bindtap="selectCategory"
-        aria-label="查看全部类目"
-      >全部</button>
-      <button
-        wx:for="{{categories}}"
-        wx:key="code"
-        class="category-chip {{selectedCategory == item.code ? 'category-chip--active' : ''}}"
-        data-code="{{item.code}}"
-        bindtap="selectCategory"
-        aria-label="按 {{item.name}} 筛选"
-      >{{item.name}}</button>
-    </view>
-  </scroll-view>
+  <view wx:if="{{loading && !hasLoaded}}" class="surface status-panel" aria-role="status"><text class="status-panel__title">正在准备店内好物…</text><text class="status-panel__message">请稍候</text></view>
+  <view wx:elif="{{errorMessage && !hasLoaded}}" class="surface status-panel" aria-role="alert"><text class="status-panel__title">首页暂时无法加载</text><text class="status-panel__message status-panel__message--error">{{errorMessage}}</text><button class="secondary-button status-panel__action" bindtap="retry">重新加载</button></view>
 
-  <view wx:if="{{loading && !products.length}}" class="surface status-panel" aria-role="status">
-    <text class="status-panel__title">正在加载商品…</text>
-    <text class="status-panel__message">请稍候</text>
-  </view>
-
-  <view wx:elif="{{errorMessage && !products.length}}" class="surface status-panel" aria-role="alert">
-    <text class="status-panel__title">目录加载失败</text>
-    <text class="status-panel__message status-panel__message--error">{{errorMessage}}</text>
-    <button class="secondary-button status-panel__action" bindtap="retry">重新加载</button>
-  </view>
-
-  <view wx:elif="{{!products.length}}" class="surface status-panel">
-    <text class="status-panel__title">没有找到商品</text>
-    <text class="status-panel__message">可以尝试其他关键词或类目。</text>
-    <button
-      wx:if="{{appliedQuery || selectedCategory}}"
-      class="secondary-button status-panel__action"
-      bindtap="resetFilters"
-    >清除筛选</button>
-  </view>
-
-  <view wx:else>
-    <view class="results-heading">
-      <text class="results-heading__count">共 {{total}} 件商品</text>
-      <text wx:if="{{loading}}" class="results-heading__loading" aria-role="status">正在更新…</text>
-    </view>
-    <view class="product-grid">
-      <product-card
-        wx:for="{{products}}"
-        wx:key="productCode"
-        item="{{item}}"
-        bind:select="openProduct"
-      />
+  <view wx:if="{{hasLoaded}}">
+    <view class="promotion surface" aria-label="店内宣传">
+      <swiper wx:if="{{carousel.length}}" class="promotion-swiper" current="{{carouselIndex}}" indicator-dots="{{carousel.length > 1}}" indicator-color="rgba(255,255,255,0.55)" indicator-active-color="#0f6b5f" autoplay="{{carousel.length > 1 && !videoPlaying && !loginVisible}}" interval="5000" circular="{{carousel.length > 1}}" bindchange="onCarouselChange">
+        <swiper-item wx:for="{{carousel}}" wx:key="id">
+          <view wx:if="{{item.unavailable || !item.url}}" class="promotion-placeholder"><text class="promotion-placeholder__title">{{item.title || '港湾集市'}}</text><text class="promotion-placeholder__copy">宣传内容暂时无法展示</text></view>
+          <video wx:elif="{{item.media_type == 'video'}}" id="home-promo-{{item.id}}" class="promotion-media" src="{{item.url}}" controls="true" autoplay="false" show-fullscreen-btn="false" show-center-play-btn="true" object-fit="cover" data-index="{{index}}" bindplay="onVideoPlay" bindpause="onVideoPause" bindended="onVideoPause" binderror="onCarouselMediaError" aria-label="{{item.title || '店内宣传视频'}}" />
+          <image wx:else class="promotion-media" src="{{item.url}}" mode="aspectFill" data-index="{{index}}" binderror="onCarouselMediaError" aria-label="{{item.title || '店内宣传图片'}}" />
+        </swiper-item>
+      </swiper>
+      <view wx:else class="promotion-placeholder"><text class="promotion-placeholder__eyebrow">欢迎来逛逛</text><text class="promotion-placeholder__title">发现店内新鲜好物</text><text class="promotion-placeholder__copy">从一份喜欢的商品开始</text><button class="promotion-placeholder__button" bindtap="openCatalog">去选购</button></view>
     </view>
 
-    <view wx:if="{{errorMessage}}" class="inline-error" aria-role="alert">
-      <text>{{errorMessage}}</text>
+    <view class="section-heading"><text class="section-heading__title">店内优惠</text><button class="section-heading__link" bindtap="openCouponCenter">我的优惠券 ›</button></view>
+    <scroll-view wx:if="{{coupons.length}}" class="coupon-strip" scroll-x="true" enhanced="true" show-scrollbar="false">
+      <view class="coupon-strip__inner">
+        <view wx:for="{{coupons}}" wx:key="id" class="coupon-card">
+          <view class="coupon-card__offer"><text class="coupon-card__price"><text class="coupon-card__currency">¥</text>{{item.displayDiscount}}</text><text class="coupon-card__threshold">{{item.thresholdText}}</text><text class="coupon-card__title">{{item.title}}</text><text wx:if="{{item.validityText}}" class="coupon-card__validity">{{item.validityText}}</text></view>
+          <button class="coupon-card__claim {{item.claimed ? 'coupon-card__claim--claimed' : ''}}" disabled="{{item.claimed || item.claiming || authBusy}}" loading="{{item.claiming}}" data-id="{{item.id}}" bindtap="claimCoupon">{{item.claimed ? '已领取' : (item.claiming ? '领取中' : '立即领取')}}</button>
+        </view>
+      </view>
+    </scroll-view>
+    <view wx:else class="section-empty surface">暂无可领取优惠券，先去看看店内好物吧。</view>
+    <view wx:if="{{couponErrorMessage}}" class="inline-error" aria-role="alert">{{couponErrorMessage}}</view>
+
+    <view class="section-heading"><text class="section-heading__title">按类目逛逛</text><button class="section-heading__link" bindtap="openCatalog">全部商品 ›</button></view>
+    <view wx:if="{{categories.length}}" class="category-grid surface" aria-label="商品类目">
+      <button wx:for="{{categories}}" wx:key="code" class="category-item" data-code="{{item.code}}" bindtap="selectCategory" aria-label="选购{{item.name}}">
+        <image wx:if="{{item.imageUrl}}" class="category-item__image" src="{{item.imageUrl}}" mode="aspectFill" data-code="{{item.code}}" binderror="onCategoryImageError" />
+        <view wx:else class="category-item__placeholder" aria-hidden="true">{{item.imageLabel}}</view><text class="category-item__name">{{item.name}}</text>
+      </button>
+    </view>
+    <view wx:else class="section-empty surface">商品类目正在准备中。</view>
+
+    <view class="section-heading"><text class="section-heading__title">到店与公告</text></view>
+    <view class="store-card surface">
+      <view class="store-card__heading"><view class="store-card__badge" aria-hidden="true">店</view><view class="store-card__identity"><text class="store-card__name">{{store.name}}</text><text class="store-card__address">{{store.address || '商家地址尚未完善'}}</text></view></view>
+      <view class="store-card__actions"><button class="store-card__action" disabled="{{!store.phone}}" bindtap="callStore" aria-label="拨打商家电话">联系商家<text class="store-card__action-detail">{{store.phone || '电话暂未配置'}}</text></button><button class="store-card__action" disabled="{{!store.hasCoordinates && !store.address}}" bindtap="navigateToStore">{{store.hasCoordinates ? '到店导航' : '复制地址'}}<text class="store-card__action-detail">{{store.hasCoordinates ? '查看商家位置' : '方便地图查找'}}</text></button></view>
+      <image wx:if="{{store.announcementImageUrl}}" class="store-announcement" src="{{store.announcementImageUrl}}" mode="widthFix" bindtap="previewAnnouncement" binderror="onAnnouncementImageError" aria-label="商家公告，点击查看大图" />
+      <view wx:else class="store-announcement-empty">{{store.announcementUnavailable ? '公告图片暂时无法展示' : '暂无店铺公告'}}</view>
     </view>
 
-    <view class="pagination" aria-role="group" aria-label="商品分页">
-      <button
-        class="secondary-button pagination__button"
-        disabled="{{loading || page == 1}}"
-        bindtap="previousPage"
-        aria-label="上一页"
-      >上一页</button>
-      <text class="pagination__label">第 {{page}} / {{totalPages}} 页</text>
-      <button
-        class="secondary-button pagination__button"
-        disabled="{{loading || page >= totalPages}}"
-        bindtap="nextPage"
-        aria-label="下一页"
-      >下一页</button>
+    <view class="section-heading section-heading--products"><view><text class="section-heading__title">{{hotProductsTitle}}</text><text class="section-heading__intro">{{hotProductsIntro}}</text></view><button class="section-heading__link" bindtap="openCatalog">更多好物 ›</button></view>
+    <view wx:if="{{hotProducts.length}}" class="product-grid">
+      <view wx:for="{{hotProducts}}" wx:key="productCode"><product-card item="{{item}}" bind:select="openProduct" /><view wx:if="{{hotProductsSource == 'sales'}}" class="product-sales"><text>已售 {{item.soldQuantity}} 件</text><text wx:if="{{item.repeatPurchaseCount > 0}}">复购 {{item.repeatPurchaseCount}} 次</text></view></view>
     </view>
+    <view wx:else class="section-empty surface">好物正在上架，敬请期待。</view>
+    <view wx:if="{{loading}}" class="home-refreshing" aria-role="status">正在更新店内信息…</view>
+    <view wx:if="{{errorMessage}}" class="inline-error" aria-role="alert"><text>{{errorMessage}}</text><button class="inline-error__retry" bindtap="retry">重试</button></view>
   </view>
 </view>
 

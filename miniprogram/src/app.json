@@ -1,9 +1,15 @@
 {
   "pages": [
     "pages/home/home",
+    "pages/catalog/catalog",
+    "pages/search/search",
     "pages/product/product",
     "pages/cart/cart",
     "pages/account/account",
+    "pages/coupons/coupons",
+    "pages/favorites/favorites",
+    "pages/orders/orders",
+    "pages/merchant/merchant",
     "pages/settings/settings"
   ],
   "window": {
@@ -21,19 +27,27 @@
     "list": [
       {
         "pagePath": "pages/home/home",
-        "text": "选购"
+        "text": "首页",
+        "iconPath": "assets/tabs/home.png",
+        "selectedIconPath": "assets/tabs/home-active.png"
+      },
+      {
+        "pagePath": "pages/catalog/catalog",
+        "text": "商品选购",
+        "iconPath": "assets/tabs/catalog.png",
+        "selectedIconPath": "assets/tabs/catalog-active.png"
       },
       {
         "pagePath": "pages/cart/cart",
-        "text": "购物车"
+        "text": "购物车",
+        "iconPath": "assets/tabs/cart.png",
+        "selectedIconPath": "assets/tabs/cart-active.png"
       },
       {
         "pagePath": "pages/account/account",
-        "text": "我的"
-      },
-      {
-        "pagePath": "pages/settings/settings",
-        "text": "设置"
+        "text": "我",
+        "iconPath": "assets/tabs/account.png",
+        "selectedIconPath": "assets/tabs/account-active.png"
       }
     ]
   },

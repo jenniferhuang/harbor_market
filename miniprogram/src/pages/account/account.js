@@ -3,6 +3,9 @@ const {
   subscribe,
   logout,
 } = require('../../state/auth-store')
+const { fetchCustomerShopAccess } = require('../../api/customer-shop')
+const { getApiBaseUrl } = require('../../api/client')
+const { readSession } = require('../../state/customer-session')
 
 function messageFor(error, fallback) {
   return error && typeof error.message === 'string' && error.message ? error.message : fallback
@@ -17,20 +20,27 @@ Page({
     errorMessage: '',
     loginVisible: false,
     loginMode: 'login',
+    canManageStore: false,
   },
 
   onLoad() {
     this._alive = true
+    this._accessSequence = 0
     this._unsubscribe = subscribe((state) => this.applyAuthState(state))
     this.applyAuthState(getAuthState())
   },
 
   onShow() {
+    this._visible = true
     this.applyAuthState(getAuthState())
+    this.loadShopAccess()
   },
+
+  onHide() { this._visible = false },
 
   onUnload() {
     this._alive = false
+    this._accessSequence += 1
     if (this._unsubscribe) this._unsubscribe()
   },
 
@@ -43,21 +53,48 @@ Page({
       avatarPath: state.avatarPath || '',
       errorMessage: state.errorMessage || '',
     })
+    if (state.status !== 'authenticated') {
+      this._accessSequence += 1
+      this._accessToken = ''
+      this._accessLoading = false
+      this.setData({ canManageStore: false })
+    } else if (this._visible && readSession()?.accessToken !== this._accessToken) {
+      this.loadShopAccess()
+    }
+  },
+
+  async loadShopAccess() {
+    const session = readSession()
+    if (!this._alive || !session || getAuthState().status !== 'authenticated') return
+    if (this._accessLoading && this._accessToken === session.accessToken) return
+    const sequence = ++this._accessSequence
+    const origin = getApiBaseUrl()
+    this._accessToken = session.accessToken
+    this._accessLoading = true
+    this.setData({ canManageStore: false })
+    try {
+      const access = await fetchCustomerShopAccess()
+      if (this._alive && sequence === this._accessSequence && origin === getApiBaseUrl()) this.setData({ canManageStore: access.can_manage_store === true })
+    } catch {
+      // Optional merchant access must not interrupt customer profile or guest browsing.
+    } finally {
+      if (sequence === this._accessSequence) this._accessLoading = false
+    }
   },
 
   openLogin() {
-    if (this.data.authBusy) return
-    this.setData({ loginVisible: true, loginMode: 'login' })
+    this.openProfileDialog()
   },
 
   openProfileDialog() {
-    if (this.data.authStatus === 'authenticated') this.editProfile()
-    else this.openLogin()
+    const state = getAuthState()
+    this.applyAuthState(state)
+    if (this.data.authBusy) return
+    this.setData({ loginVisible: true, loginMode: state.status === 'authenticated' ? 'profile' : 'login' })
   },
 
   editProfile() {
-    if (this.data.authBusy || this.data.authStatus !== 'authenticated') return
-    this.setData({ loginVisible: true, loginMode: 'profile' })
+    this.openProfileDialog()
   },
 
   closeLogin() {
@@ -118,10 +155,21 @@ Page({
   },
 
   openSettings() {
-    wx.switchTab({ url: '/pages/settings/settings' })
+    wx.navigateTo({ url: '/pages/settings/settings' })
   },
 
   continueShopping() {
-    wx.switchTab({ url: '/pages/home/home' })
+    wx.switchTab({ url: '/pages/catalog/catalog' })
+  },
+
+  openCoupons() { this.openCustomerPage('coupons') },
+  openFavorites() { this.openCustomerPage('favorites') },
+  openOrders() { this.openCustomerPage('orders') },
+  openCustomerPage(page) {
+    if (this.data.authStatus !== 'authenticated') { this.openLogin(); return }
+    wx.navigateTo({ url: `/pages/${page}/${page}` })
+  },
+  openMerchant() {
+    if (this.data.canManageStore) wx.navigateTo({ url: '/pages/merchant/merchant' })
   },
 })

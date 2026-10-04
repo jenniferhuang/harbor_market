@@ -68,6 +68,11 @@ const fieldLabels: Record<string, string> = {
   sort: '排序值', is_default: '默认状态', image_type: '图片类型', alt_text: '图片说明',
   images: '图片', object_key: '图片路径', file: '文件', sheet: '工作表', headers: '表头',
   rows: '行数', request: '请求', transaction: '导入事务', staging: '暂存图片', cleanup: '清理任务',
+  phone: '商家电话', address: '商家地址', latitude: '纬度', longitude: '经度',
+  owner_customer_id: '商家微信账号', customer_id: '微信顾客', title: '标题', kind: '资料用途',
+  min_spend_cents: '满减门槛', discount_cents: '优惠金额', starts_at: '开始时间',
+  expires_at: '结束时间', completed_at: '成交时间', external_reference: '原始成交单号',
+  quantity: '成交数量', unit_price_cents: '实际成交单价', items: '成交商品',
 }
 
 function ownLabel(labels: Record<string, string>, key: string): string | undefined {

@@ -57,6 +57,8 @@ flowchart LR
 Both clients currently reach the local API through Nginx at `http://127.0.0.1:8080`.
 The web admin uses `/api/v1/auth/...` and `/api/v1/admin/...`, with administrator authentication.
 The Mini Program uses the public `/api/v1/catalog/...` and `/api/v1/media/...` routes.
+Its homepage uses `/api/v1/shop/...`; authenticated customer and bound-owner actions use
+`/api/v1/mini/shop/...`. The browser administrator configures homepage content at `/admin/shop`.
 Those routes belong to the same FastAPI application and read the same database and media storage.
 Database credentials remain in the server's environment; the Mini Program receives HTTP responses.
 
@@ -89,7 +91,7 @@ bash deploy/start-development.sh
 
 In WeChat DevTools, import this main project's `miniprogram/` folder and select Compile.
 Its `project.config.json` uses `touristappid` for local simulation and `src/` as its source root.
-The API address defaults to `http://127.0.0.1:8080`. In the Mini Program, Settings → 连接设置 can
+The API address defaults to `http://127.0.0.1:8080`. In the Mini Program, 我 → 连接设置 can
 test and save a different API origin; enter the origin without `/api/v1`.
 
 On a phone, localhost refers to the phone itself. Phone preview needs a usable Test/owned AppID
@@ -124,7 +126,10 @@ npm run lint
 Product/category browsing, SKU selection, the local cart, and optional WeChat customer login are
 implemented. Customer sessions, nicknames, and private avatars use the shared backend; real login
 requires the matching Mini Program AppID and backend AppSecret. The cart is stored on the device.
-Checkout, order management, stock reservation, and live WeChat Pay still need implementation.
+The six-module homepage, coupons and claims, favorites, bound-owner shop editing, and historical
+purchase records are also implemented on this development branch. Administrators can record
+completed sales for the homepage ranking. Checkout, fulfillment, stock reservation, coupon
+redemption, and live WeChat Pay still need implementation.
 The shared backend already contains a mock payment state machine and provider for development;
 it does not process live payments or enable checkout in the Mini Program.
 
@@ -138,5 +143,6 @@ it does not process live payments or enable checkout in the Mini Program.
 - [Mini Program catalog requests](../miniprogram/src/api/catalog.js)
 - [Mini Program local cart](../miniprogram/src/state/cart-store.js)
 - [WeChat customer login setup and contract](WECHAT_LOGIN.md)
+- [Homepage implementation and configuration](HOMEPAGE_IMPLEMENTATION.md)
 - [Mini Program setup](../miniprogram/README.md)
 - [Persistent database operations](../deploy/development-db/README.md)

@@ -1,0 +1,23 @@
+<view class="page-shell">
+  <text class="page-heading">商家信息</text>
+  <view wx:if="{{loading}}" class="surface status-panel" aria-role="status"><text>正在加载商家信息…</text></view>
+  <view wx:if="{{errorMessage}}" class="error-message" aria-role="alert">{{errorMessage}}</view>
+  <view wx:if="{{successMessage}}" class="success-message" aria-role="status">{{successMessage}}</view>
+  <block wx:if="{{!loading && allowed}}">
+    <view class="surface merchant-form">
+      <view class="form-row"><text>商家名字</text><input value="{{form.name}}" maxlength="160" data-field="name" bindinput="onFieldInput" disabled="{{saving || uploading}}" placeholder="填写商家名字" /></view>
+      <view class="form-row"><text>商家电话</text><input value="{{form.phone}}" maxlength="40" data-field="phone" bindinput="onFieldInput" disabled="{{saving || uploading}}" placeholder="填写联系电话" /></view>
+      <view class="form-row"><text>商家地址</text><input value="{{form.address}}" maxlength="500" data-field="address" bindinput="onFieldInput" disabled="{{saving || uploading}}" placeholder="填写完整地址" /></view>
+      <text class="form-note">需要一键导航时填写店铺坐标；两项可一起留空。</text>
+      <view class="form-row"><text>导航纬度</text><input value="{{form.latitude}}" maxlength="20" data-field="latitude" bindinput="onFieldInput" disabled="{{saving || uploading}}" placeholder="纬度，例如 24.48" /></view>
+      <view class="form-row"><text>导航经度</text><input value="{{form.longitude}}" maxlength="20" data-field="longitude" bindinput="onFieldInput" disabled="{{saving || uploading}}" placeholder="经度，例如 118.08" /></view>
+      <button class="primary-button save-button" bindtap="save" disabled="{{saving || uploading}}" loading="{{saving}}">{{saving ? '正在保存…' : '保存商家信息'}}</button>
+    </view>
+    <view class="surface announcement-card">
+      <text class="announcement-title">商家公告图片</text>
+      <image wx:if="{{announcementUrl}}" src="{{announcementUrl}}" mode="widthFix" class="announcement-image" bindtap="previewAnnouncement" aria-label="查看当前商家公告" />
+      <text wx:else class="form-note">还没有公告图片，可以上传包邮说明、营业时间等店铺公告。</text>
+      <button class="secondary-button" bindtap="chooseAnnouncement" disabled="{{saving || uploading}}" loading="{{uploading}}">{{uploading ? '正在上传…' : announcementUrl ? '更换公告图片' : '上传公告图片'}}</button>
+    </view>
+  </block>
+</view>

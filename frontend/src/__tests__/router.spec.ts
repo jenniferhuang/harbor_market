@@ -60,6 +60,17 @@ describe('router authentication guards', () => {
     expect(router.currentRoute.value.name).toBe('admin-products')
   })
 
+  it.each([
+    [false, false, 'login'],
+    [true, false, 'home'],
+    [true, true, 'admin-shop'],
+  ])('protects shop administration for authenticated=%s admin=%s', async (authenticated, admin, destination) => {
+    const router = createAppRouter(createMemoryHistory(), createGate(authenticated, admin))
+    await router.push('/admin/shop')
+    expect(router.currentRoute.value.name).toBe(destination)
+    if (!authenticated) expect(router.currentRoute.value.query.redirect).toBe('/admin/shop')
+  })
+
   it('marks session-check failures instead of treating them as a normal anonymous session', async () => {
     const gate = createGate(false)
     gate.restore = vi.fn(async () => Promise.reject(new Error('service unavailable')))

@@ -1,0 +1,19 @@
+.catalog-heading { padding: 12rpx 4rpx 26rpx; }
+.catalog-eyebrow { display: block; margin-bottom: 12rpx; color: #0f6b5f; font-size: 22rpx; font-weight: 700; letter-spacing: 4rpx; }
+.catalog-search { display: flex; width: 100%; min-height: 92rpx; align-items: center; gap: 14rpx; margin: 0; padding: 14rpx 22rpx; text-align: left; }
+.catalog-search__icon { color: #0f6b5f; font-size: 42rpx; }
+.catalog-search__hint { flex: 1; color: #7a8b85; font-size: 26rpx; }
+.catalog-search__label { color: #0f6b5f; font-size: 26rpx; font-weight: 650; }
+.category-strip { width: 100%; margin: 24rpx 0 6rpx; white-space: nowrap; }
+.category-strip__inner { display: inline-flex; gap: 14rpx; padding: 4rpx 2rpx 14rpx; }
+.category-chip { width: auto; min-width: 108rpx; min-height: 68rpx; margin: 0; border: 1rpx solid #cddbd7; border-radius: 999rpx; padding: 13rpx 24rpx; background: #ffffff; color: #4d625d; font-size: 25rpx; line-height: 1.5; }
+.category-chip--active { border-color: #0f6b5f; background: #0f6b5f; color: #ffffff; font-weight: 650; }
+.results-heading { display: flex; min-height: 70rpx; align-items: center; justify-content: space-between; padding: 0 4rpx; font-size: 27rpx; font-weight: 650; }
+.results-heading__loading { color: #637772; font-size: 24rpx; font-weight: 400; }
+.product-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20rpx; }
+.inline-error { margin-top: 20rpx; border-radius: 16rpx; padding: 18rpx; background: #fff3f1; color: #9d352c; font-size: 25rpx; line-height: 1.5; }
+.inline-error__retry { display: inline-flex; width: auto; margin: 8rpx 0 0; padding: 4rpx 14rpx; background: transparent; color: #9d352c; font-size: 25rpx; line-height: 1.6; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 20rpx; padding: 34rpx 0 8rpx; }
+.pagination__button { width: auto; min-width: 150rpx; min-height: 76rpx; margin: 0; padding: 15rpx 24rpx; font-size: 26rpx; }
+.pagination__button[disabled] { border-color: #dfe6e3; color: #a4b1ad; }
+.pagination__label { min-width: 156rpx; color: #5e716c; font-size: 25rpx; text-align: center; }

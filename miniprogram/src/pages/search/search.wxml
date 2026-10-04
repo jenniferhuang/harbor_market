@@ -1,0 +1,49 @@
+<view class="page-shell search-page" aria-role="main">
+  <view class="search-bar surface" aria-role="search" aria-label="全局商品搜索">
+    <input class="search-bar__input" value="{{queryInput}}" focus="{{inputFocused}}" placeholder="搜索商品名称或编码" confirm-type="search" maxlength="160" bindinput="onQueryInput" bindconfirm="submitSearch" aria-label="商品搜索关键词" />
+    <button wx:if="{{queryInput || appliedQuery}}" class="search-bar__clear" bindtap="clearSearch" aria-label="清空搜索">清空</button>
+    <button class="search-bar__submit" bindtap="submitSearch" aria-label="搜索商品">搜索</button>
+  </view>
+
+  <view wx:if="{{!searchSubmitted}}" class="hot-search-section">
+    <view class="section-heading"><text class="section-heading__title">商品热搜榜</text><text class="section-heading__caption">大家正在找</text></view>
+    <view wx:if="{{hotLoading}}" class="surface status-panel" aria-role="status"><text class="status-panel__title">正在加载热搜榜…</text></view>
+    <view wx:elif="{{hotErrorMessage}}" class="surface status-panel" aria-role="alert">
+      <text class="status-panel__title">热搜榜暂不可用</text><text class="status-panel__message status-panel__message--error">{{hotErrorMessage}}</text>
+      <button class="secondary-button status-panel__action" bindtap="loadHotSearches">重新加载</button>
+    </view>
+    <view wx:elif="{{!hotSearches.length}}" class="surface status-panel">
+      <text class="status-panel__title">暂无热搜商品</text><text class="status-panel__message">输入关键词，搜一搜你喜欢的好物。</text>
+    </view>
+    <view wx:else class="surface hot-search-list">
+      <button wx:for="{{hotSearches}}" wx:key="productCode" class="hot-search-item" data-code="{{item.productCode}}" bindtap="openProduct" aria-label="热搜第 {{item.rank}} 名，{{item.name}}，查看商品">
+        <text class="hot-search-item__rank hot-search-item__rank--{{item.rank}}">{{item.rank}}</text>
+        <image wx:if="{{item.coverUrl}}" class="hot-search-item__image" src="{{item.coverUrl}}" mode="aspectFill" lazy-load="true" />
+        <view wx:else class="hot-search-item__image hot-search-item__placeholder" aria-hidden="true">港湾</view>
+        <view class="hot-search-item__copy"><text class="hot-search-item__name">{{item.name}}</text><text class="hot-search-item__meta">{{item.searchHitCount}} 次搜索命中</text></view>
+        <text class="hot-search-item__arrow" aria-hidden="true">›</text>
+      </button>
+    </view>
+  </view>
+
+  <view wx:else class="search-results">
+    <view class="section-heading"><text class="section-heading__title">搜索结果</text><text class="section-heading__caption">共 {{total}} 件</text></view>
+    <text class="search-query">“{{appliedQuery}}”</text>
+    <view wx:if="{{loading && !products.length}}" class="surface status-panel" aria-role="status"><text class="status-panel__title">正在搜索商品…</text></view>
+    <view wx:elif="{{errorMessage && !products.length}}" class="surface status-panel" aria-role="alert">
+      <text class="status-panel__title">搜索未能完成</text><text class="status-panel__message status-panel__message--error">{{errorMessage}}</text>
+      <button class="secondary-button status-panel__action" bindtap="retrySearch">重试</button>
+    </view>
+    <view wx:elif="{{!products.length}}" class="surface status-panel"><text class="status-panel__title">没有找到商品</text><text class="status-panel__message">试试其他关键词，或返回热搜榜看看。</text><button class="secondary-button status-panel__action" bindtap="clearSearch">返回热搜榜</button></view>
+    <view wx:else>
+      <text wx:if="{{loading}}" class="results-loading" aria-role="status">正在更新…</text>
+      <view class="product-grid"><product-card wx:for="{{products}}" wx:key="productCode" item="{{item}}" bind:select="openProduct" /></view>
+      <view wx:if="{{errorMessage}}" class="inline-error" aria-role="alert"><text>{{errorMessage}}</text><button class="inline-error__retry" bindtap="retrySearch">重试</button></view>
+      <view class="pagination" aria-role="group" aria-label="搜索结果分页">
+        <button class="secondary-button pagination__button" disabled="{{loading || page == 1}}" bindtap="previousPage">上一页</button>
+        <text class="pagination__label">第 {{page}} / {{totalPages}} 页</text>
+        <button class="secondary-button pagination__button" disabled="{{loading || page >= totalPages}}" bindtap="nextPage">下一页</button>
+      </view>
+    </view>
+  </view>
+</view>

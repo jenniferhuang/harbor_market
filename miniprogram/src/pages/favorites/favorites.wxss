@@ -1,0 +1,7 @@
+.favorite-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20rpx; margin-top: 28rpx; }
+.remove-favorite { margin: 12rpx 0 0; padding: 14rpx; background: transparent; color: #60716d; font-size: 24rpx; line-height: 1.5; }
+.list-message { margin-top: 28rpx; }
+.error-message { margin-top: 24rpx; padding: 20rpx; border-radius: 16rpx; background: #fff3f1; color: #9d352c; }
+.error-message button { margin-top: 16rpx; }
+
+.load-more { margin-top: 28rpx; }

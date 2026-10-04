@@ -1,0 +1,11 @@
+.merchant-form, .announcement-card { margin-top: 24rpx; padding: 28rpx; }
+.form-row { margin-bottom: 24rpx; }
+.form-row text { display: block; margin-bottom: 12rpx; font-size: 26rpx; font-weight: 650; }
+.form-row input { height: 80rpx; border: 1rpx solid #cddbd7; border-radius: 12rpx; padding: 0 20rpx; font-size: 27rpx; }
+.form-note { display: block; margin-bottom: 24rpx; color: #60716d; font-size: 25rpx; line-height: 1.6; }
+.save-button { margin-top: 24rpx; }
+.announcement-title { display: block; margin-bottom: 20rpx; font-size: 30rpx; font-weight: 650; }
+.announcement-image { display: block; width: 100%; margin-bottom: 24rpx; border-radius: 16rpx; }
+.error-message, .success-message { margin-top: 24rpx; padding: 20rpx; border-radius: 16rpx; line-height: 1.6; }
+.error-message { background: #fff3f1; color: #9d352c; }
+.success-message { background: #e6f0eb; color: #0f6b5f; }

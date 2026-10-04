@@ -5,7 +5,7 @@ development database with PostgreSQL 16.13, matching the locally verified Postgr
 Database `xiangyue_xiamen` and its owner/application role `harbor_market` are provisioned separately
 from the Compose initializer's `harbor_market_operator` maintenance role. Password login and
 public-schema permissions are verified. The application role has no superuser, database-creation,
-or role-creation privileges. Migrations are at `0005_add_mini_customer_sessions`, with 14 public
+or role-creation privileges. Migrations are at `0006_add_shop_homepage_commerce`, with 21 public
 tables. Both existing preview accounts were copied transactionally into the previously empty
 schema, including one administrator. Existing MinIO media remains local.
 
@@ -13,6 +13,15 @@ The WeChat login upgrade added isolated customer/session tables on 2026-10-04 af
 VM backup at `/opt/harbor-market-development-db/backups/xiangyue_xiamen-before-wechat-login-20261004T144135Z.sql`.
 The two existing browser accounts, published product, product image, and two SKUs were verified
 after upgrade. Customer tables remain empty until real WeChat login is configured.
+
+The homepage upgrade was applied on 2026-10-04 after a restricted VM backup at
+`/opt/harbor-market-development-db/backups/xiangyue_xiamen-before-homepage-20261004T153954Z.sql`
+(48,731 bytes, mode600). It adds a product search counter and seven shop/interaction/history tables.
+After upgrade, both browser users, the published product, its image and two SKUs were preserved.
+The seven new tables and WeChat customer/session tables remain empty until real configuration or
+customer use; no fabricated promotions, favorites or sales were inserted.
+The live homepage returns the existing 苹果美式 as a featured recommendation, and its original
+MinIO PNG remains readable. Backend database/storage health checks passed.
 
 This database is intended to retain development data, including catalog data prepared for later
 import or migration into production. Keep that data and its associated media across development

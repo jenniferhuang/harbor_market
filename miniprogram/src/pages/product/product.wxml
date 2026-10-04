@@ -65,6 +65,8 @@
           <text wx:if="{{marketPrice}}" class="product-summary__market-price">{{marketPrice}}</text>
           <text class="product-summary__stock">{{stockLabel}}</text>
         </view>
+        <button class="secondary-button product-favorite" bindtap="toggleFavorite" disabled="{{favoriteBusy}}" aria-label="{{isFavorite ? '取消收藏商品' : '收藏商品'}}">{{favoriteBusy ? '正在保存…' : isFavorite ? '♥ 已收藏' : '♡ 收藏商品'}}</button>
+        <text wx:if="{{favoriteError}}" class="selection-hint" aria-role="alert">{{favoriteError}}</text>
         <view wx:if="{{product.tags.length}}" class="tag-row" aria-label="商品标签">
           <text wx:for="{{product.tags}}" wx:key="*this" class="tag">{{item}}</text>
         </view>

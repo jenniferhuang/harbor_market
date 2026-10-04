@@ -10,6 +10,9 @@ const {
 } = require('../../domain/catalog')
 const { loadCart, addItem } = require('../../state/cart-store')
 const { formatCents } = require('../../utils/money')
+const { getApiBaseUrl } = require('../../api/client')
+const { getAuthState, subscribe } = require('../../state/auth-store')
+const { getFavorite, setFavorite } = require('../../api/customer-shop')
 
 function messageFor(error, fallback) {
   return error && typeof error.message === 'string' && error.message ? error.message : fallback
@@ -76,9 +79,15 @@ Page({
     adding: false,
     loading: true,
     errorMessage: '',
+    isFavorite: false,
+    favoriteBusy: false,
+    favoriteError: '',
   },
 
   onLoad(options) {
+    this._alive = true
+    this._favoriteSequence = 0
+    this._loadSequence = 0
     const rawCode = typeof options.code === 'string' ? options.code : ''
     let productCode = rawCode
     try {
@@ -87,7 +96,57 @@ Page({
       productCode = rawCode
     }
     this.setData({ productCode })
+    this._unsubscribe = subscribe((state) => {
+      const id = state.status === 'authenticated' ? state.customer.id : null
+      if (id === this._customerId) return
+      this._customerId = id
+      this._favoriteSequence += 1
+      if (this._alive) this.setData({ isFavorite: false, favoriteBusy: false, favoriteError: '' })
+      if (id) this.loadFavorite()
+    })
     this.loadProduct()
+  },
+
+  onShow() { if (getAuthState().status === 'authenticated') this.loadFavorite() },
+  onUnload() {
+    this._alive = false
+    this._favoriteSequence += 1
+    this._loadSequence += 1
+    if (this._unsubscribe) this._unsubscribe()
+  },
+
+  async loadFavorite() {
+    if (!this.data.productCode || this.data.favoriteBusy) return
+    const sequence = ++this._favoriteSequence
+    const origin = getApiBaseUrl()
+    try {
+      const result = await getFavorite(this.data.productCode)
+      if (this._alive && sequence === this._favoriteSequence && origin === getApiBaseUrl()) this.setData({ isFavorite: result.is_favorite, favoriteError: '' })
+    } catch (error) {
+      if (this._alive && sequence === this._favoriteSequence && origin === getApiBaseUrl()) this.setData({ favoriteError: error.message || '收藏状态暂时无法加载。' })
+    }
+  },
+
+  async toggleFavorite() {
+    if (!this.data.product || this.data.favoriteBusy) return
+    if (getAuthState().status !== 'authenticated') {
+      wx.showModal({ title: '登录后收藏商品', content: '通过微信登录后，可把喜欢的商品保存到“我的收藏”。', confirmText: '去登录', cancelText: '继续浏览', success: (result) => { if (result.confirm) wx.switchTab({ url: '/pages/account/account' }) } })
+      return
+    }
+    const sequence = ++this._favoriteSequence
+    const origin = getApiBaseUrl()
+    this.setData({ favoriteBusy: true, favoriteError: '' })
+    try {
+      const result = await setFavorite(this.data.productCode, !this.data.isFavorite)
+      if (this._alive && sequence === this._favoriteSequence && origin === getApiBaseUrl()) {
+        this.setData({ isFavorite: result.is_favorite })
+        wx.showToast({ title: result.is_favorite ? '已收藏' : '已取消收藏', icon: 'success' })
+      }
+    } catch (error) {
+      if (this._alive && sequence === this._favoriteSequence && origin === getApiBaseUrl()) this.setData({ favoriteError: error.message || '收藏保存失败，请重试。' })
+    } finally {
+      if (this._alive && sequence === this._favoriteSequence && origin === getApiBaseUrl()) this.setData({ favoriteBusy: false })
+    }
   },
 
   async onPullDownRefresh() {
@@ -96,6 +155,8 @@ Page({
   },
 
   async loadProduct() {
+    const sequence = ++this._loadSequence
+    const origin = getApiBaseUrl()
     if (!this.data.productCode) {
       this.setData({
         loading: false,
@@ -106,6 +167,7 @@ Page({
     this.setData({ loading: true, errorMessage: '' })
     try {
       const product = await fetchProduct(this.data.productCode)
+      if (!this._alive || sequence !== this._loadSequence || origin !== getApiBaseUrl()) return
       const selections = initialSelections(product)
       this.setData({
         product,
@@ -118,6 +180,7 @@ Page({
       this.refreshSelectionView()
       wx.setNavigationBarTitle({ title: product.name || '商品详情' })
     } catch (error) {
+      if (!this._alive || sequence !== this._loadSequence || origin !== getApiBaseUrl()) return
       this.setData({
         loading: false,
         errorMessage: messageFor(error, '商品详情暂时无法加载，请稍后重试。'),
@@ -198,9 +261,9 @@ Page({
     }
 
     let selectionHint = ''
-    if (activeSkus.length === 0) selectionHint = '商品尚未配置可售 SKU。'
+    if (activeSkus.length === 0) selectionHint = '商品尚未配置可售规格。'
     else if (!validation.valid) selectionHint = validation.message
-    else if (!skuResolved) selectionHint = '当前选项没有可用 SKU，请选择其他组合。'
+    else if (!skuResolved) selectionHint = '当前选项没有可用规格，请选择其他组合。'
     else if (!available) selectionHint = '当前选项暂时无库存。'
 
     this.setData({

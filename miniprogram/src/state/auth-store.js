@@ -260,6 +260,15 @@ function resetSessionForApiChange() {
   guest()
 }
 
+function expireSession(accessToken) {
+  const active = sessions.readSession()
+  if (!active) { getAuthState(); return }
+  if (active.accessToken !== accessToken) return
+  generation += 1
+  sessions.clearSession()
+  guest('登录状态已失效，请重新登录。')
+}
+
 function shouldPromptForLogin() {
   if (prompted || getAuthState().status !== 'guest' || state.busy) return false
   prompted = true
@@ -267,6 +276,7 @@ function shouldPromptForLogin() {
 }
 
 module.exports = {
+  expireSession,
   getAuthState,
   loginWithWeChat,
   logout,
