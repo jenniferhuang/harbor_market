@@ -239,6 +239,10 @@ sale counts are zero. Historical order entry is browser-admin only, uses unique 
 server-calculated totals, and saved product names/codes. It neither creates a WeChat payment nor
 changes stock. Coupon functionality is display/claim only; checkout and redemption are outside this
 homepage baseline. Existing customer claims remain idempotent after campaign expiry/deactivation.
+`GET /api/v1/mini/shop/coupons` is the current customer's owned-claim history, including expired
+or inactive campaigns; it excludes all unclaimed coupons and other customers' claims. Results
+are paginated newest-claimed first, with claim ID as the tie-breaker. Public `/shop/home` supplies
+currently available activities separately, so restoring owned claims cannot mark every offer claimed.
 
 The default unconfigured store name is `港湾集市`. Administrators can bind an active Mini Program
 customer as the owner. That customer may edit store fields and upload announcement images using

@@ -34,8 +34,11 @@ ISO8601。分页参数 `page=1`、`page_size=20`，每页最多100条，列表�
 - `GET|PUT|DELETE /mini/shop/favorites/{product_code}` → `{is_favorite:boolean}`。
 - `GET /mini/shop/coupons` →
   `[{coupon_id,title,min_spend_cents,discount_cents,starts_at,expires_at,is_active,claimed_at}]`。
+  只返回当前客户实际领取过的优惠券，保留过期或停用活动的领取记录，`claimed_at` 均非空。
+  按领取时间降序、领取记录ID降序分页，默认20条，每页最多100条。
+  当前可领取的活动由公开 `GET /shop/home` 提供，此接口不会把未领取的活动当作“我的优惠券”。
 - `POST /mini/shop/coupons/{id}/claim` → 上述单条已领取记录；重复领取返回同一记录。
-  列表显示当前有效活动并标记已领取状态；活动过期或停用后，已有领取记录的重试仍返回原领取时间，
+  活动过期或停用后，已有领取记录的重试仍返回原领取时间，
   新领取则返回404。
 - `GET /mini/shop/orders` → 当前客户的历史订单数组。
 - 商家专用 `GET|PATCH /mini/shop/store` → 公开 `store` 字段；PATCH只接受
