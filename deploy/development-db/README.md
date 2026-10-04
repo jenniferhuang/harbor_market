@@ -5,9 +5,14 @@ development database with PostgreSQL 16.13, matching the locally verified Postgr
 Database `xiangyue_xiamen` and its owner/application role `harbor_market` are provisioned separately
 from the Compose initializer's `harbor_market_operator` maintenance role. Password login and
 public-schema permissions are verified. The application role has no superuser, database-creation,
-or role-creation privileges. Migrations are at `0004_track_promoted_staging_keys`, with 12 public
+or role-creation privileges. Migrations are at `0005_add_mini_customer_sessions`, with 14 public
 tables. Both existing preview accounts were copied transactionally into the previously empty
 schema, including one administrator. Existing MinIO media remains local.
+
+The WeChat login upgrade added isolated customer/session tables on 2026-10-04 after a restricted
+VM backup at `/opt/harbor-market-development-db/backups/xiangyue_xiamen-before-wechat-login-20261004T144135Z.sql`.
+The two existing browser accounts, published product, product image, and two SKUs were verified
+after upgrade. Customer tables remain empty until real WeChat login is configured.
 
 This database is intended to retain development data, including catalog data prepared for later
 import or migration into production. Keep that data and its associated media across development
