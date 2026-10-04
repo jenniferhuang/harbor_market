@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     mini_login_rate_limit: int = Field(default=10, ge=1, le=100)
     mini_login_rate_window_seconds: int = Field(default=60, ge=1, le=86_400)
     mini_avatar_upload_max_bytes: int = Field(default=2 * 1024 * 1024, ge=1, le=2 * 1024 * 1024)
+    shop_image_upload_max_bytes: int = Field(default=5 * 1024 * 1024, ge=1, le=5 * 1024 * 1024)
+    shop_video_upload_max_bytes: int = Field(default=10 * 1024 * 1024, ge=1, le=10 * 1024 * 1024)
+    shop_search_rate_limit: int = Field(default=30, ge=1, le=1_000)
+    shop_search_rate_window_seconds: int = Field(default=60, ge=1, le=86_400)
 
     cors_allowed_origins: str = ""
     allowed_hosts: str = "localhost,127.0.0.1"

@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import ImportJob, MiniCustomer, ObjectCleanupJob, ProductImage
+from app.models import ImportJob, MiniCustomer, ObjectCleanupJob, ProductImage, ShopMedia
 from app.services.object_storage import ObjectStorage, ObjectStorageNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,10 @@ def run_object_cleanup_jobs(
                 select(MiniCustomer.id)
                 .where(MiniCustomer.avatar_object_key == job.object_key)
                 .limit(1)
+            )
+        if live_reference is None:
+            live_reference = session.scalar(
+                select(ShopMedia.id).where(ShopMedia.object_key == job.object_key).limit(1)
             )
         if live_reference is not None:
             job.status = "completed"

@@ -216,3 +216,44 @@ revocation and permission separation without contacting Tencent or the persisten
 Passing these tests does not claim live login verification. When credentials and deployment are
 ready, verify `wx.login` → backend login → `/me` → avatar upload/download → logout on a real
 Mini Program; expired/reused codes should produce a Chinese prompt to obtain a fresh code.
+
+## Shop homepage and customer records
+
+Migration `0006_add_shop_homepage_commerce` adds the minimal homepage data: one store profile,
+carousel/category/announcement media, fixed threshold coupons and customer claims, favorites,
+and administrator-recorded completed historical orders with immutable product/price snapshots.
+`products.search_hit_count` is the only search counter; no event analytics or reporting tables
+are introduced. The exact client contract is in [HOMEPAGE_API.md](HOMEPAGE_API.md).
+
+Homepage responses expose only published products in active categories. Positive search counts
+rank hot searches. Only explicit `POST /api/v1/shop/search` increments every matched public product
+once; subsequent catalog GET pagination does not count. Requests reuse the existing fuzzy name/code
+filter and IP/proxy trust policy. The per-process bounded limiter defaults to 30 requests per
+60 seconds, including invalid JSON, configurable with `SHOP_SEARCH_RATE_LIMIT` and
+`SHOP_SEARCH_RATE_WINDOW_SECONDS`.
+
+Sales and repeat purchases are aggregated directly from completed historical order lines; voided
+orders are excluded. Anonymous records contribute quantity/order count but do not invent repeat
+customers. Without public sales history, the source is honestly `featured` or `newest` and all
+sale counts are zero. Historical order entry is browser-admin only, uses unique external references,
+server-calculated totals, and saved product names/codes. It neither creates a WeChat payment nor
+changes stock. Coupon functionality is display/claim only; checkout and redemption are outside this
+homepage baseline. Existing customer claims remain idempotent after campaign expiry/deactivation.
+
+The default unconfigured store name is `港湾集市`. Administrators can bind an active Mini Program
+customer as the owner. That customer may edit store fields and upload announcement images using
+their existing Bearer session; it grants no browser administrator role. Customer selections expose
+only IDs and nicknames. Store contacts, coordinates and public media are intended to be public.
+
+`SHOP_IMAGE_UPLOAD_MAX_BYTES` defaults to 5 MiB, and `SHOP_VIDEO_UPLOAD_MAX_BYTES` to 10 MiB, within
+the existing proxy's 12 MiB request limit. Images are verified static JPEG/PNG/WebP and reencoded
+without metadata within 2048×2048. MP4 videos receive bounded structural, track-duration and codec
+checks (H.264/H.265, at most 60 seconds), without external decoding/transcoding. Public video reads
+support a single byte range; all reads verify size/hash and stay within bounded object sizes.
+Admin media lists default to 20 rows, maximum 100; use paging for larger lists. Replacements and
+category deletions reuse durable object cleanup, and current shop-media references are protected.
+
+New migration and API checks run against isolated SQLite, with PostgreSQL SQL compiled offline.
+Deployment, migrations against the persistent database, and live customer/media data population
+are separate integration steps. Include the new tables and `shop/` object prefix in coordinated
+database/MinIO backups and restoration.

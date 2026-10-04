@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -101,6 +102,9 @@ class Product(Base):
         default=0,
         server_default=text("0"),
     )
+    search_hit_count: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -149,6 +153,7 @@ class Product(Base):
             "inventory_count IS NULL OR inventory_count >= 0",
             name="inventory_count_nonnegative",
         ),
+        CheckConstraint("search_hit_count >= 0", name="search_hit_count_nonnegative"),
         Index("ix_products_category_status_sort", "category_id", "status", "sort_order"),
         Index("ix_products_status_featured_sort", "status", "featured", "sort_order"),
     )
