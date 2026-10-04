@@ -160,19 +160,15 @@ class ShopCommerceService:
         *,
         page: int,
         page_size: int,
-        now: datetime | None = None,
     ) -> list[CouponRead]:
         rows = session.execute(
             select(ShopCoupon, MiniCouponClaim.claimed_at)
-            .outerjoin(
+            .join(
                 MiniCouponClaim,
-                and_(
-                    MiniCouponClaim.coupon_id == ShopCoupon.id,
-                    MiniCouponClaim.customer_id == customer_id,
-                ),
+                MiniCouponClaim.coupon_id == ShopCoupon.id,
             )
-            .where(active_coupon_condition(now or datetime.now(UTC)))
-            .order_by(ShopCoupon.expires_at, ShopCoupon.id)
+            .where(MiniCouponClaim.customer_id == customer_id)
+            .order_by(MiniCouponClaim.claimed_at.desc(), MiniCouponClaim.id.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
         )

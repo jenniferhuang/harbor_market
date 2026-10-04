@@ -205,21 +205,17 @@ def test_coupon_claims_are_unique_and_derive_customer_from_bearer(
     first, second = commerce_customers
     path = f"{MINI}/coupons/{coupon['id']}/claim"
     listing = admin_client.get(f"{MINI}/coupons", headers=_bearer(first)).json()["data"]
-    assert len(listing) == 1
-    assert listing[0]["coupon_id"] == coupon["id"]
-    assert listing[0]["is_active"] is True
-    assert listing[0]["claimed_at"] is None
+    assert listing == []
     claim = admin_client.post(path, headers=_bearer(first))
     assert claim.status_code == 200, claim.text
+    assert claim.json()["data"]["coupon_id"] == coupon["id"]
+    assert claim.json()["data"]["is_active"] is True
     assert claim.json()["data"]["claimed_at"] is not None
     assert admin_client.post(path, headers=_bearer(first)).json() == claim.json()
     assert admin_client.get(f"{MINI}/coupons", headers=_bearer(first)).json()["data"] == [
         claim.json()["data"]
     ]
-    assert (
-        admin_client.get(f"{MINI}/coupons", headers=_bearer(second)).json()["data"][0]["claimed_at"]
-        is None
-    )
+    assert admin_client.get(f"{MINI}/coupons", headers=_bearer(second)).json() == {"data": []}
     forged = admin_client.post(
         path, headers=_bearer(second), json={"customer_id": first["customer"]["id"]}
     )
@@ -236,7 +232,7 @@ def test_coupon_claims_are_unique_and_derive_customer_from_bearer(
 
 
 @pytest.mark.parametrize("window", ["expired", "future", "inactive"])
-def test_only_active_current_coupons_can_be_listed_and_claimed(
+def test_unavailable_unclaimed_coupons_are_absent_and_cannot_be_claimed(
     admin_client: TestClient,
     commerce_customers: list[dict[str, Any]],
     window: str,
@@ -290,9 +286,90 @@ def test_existing_coupon_claim_retries_survive_expiry_and_deactivation(
     assert retry.json()["data"]["is_active"] == updated.json()["data"]["is_active"]
     assert retry.json()["data"]["expires_at"] == updated.json()["data"]["expires_at"]
     _assert_chinese_error(admin_client.post(path, headers=_bearer(second)), 404)
-    assert admin_client.get(f"{MINI}/coupons", headers=_bearer(first)).json() == {"data": []}
+    assert admin_client.get(f"{MINI}/coupons", headers=_bearer(first)).json() == {
+        "data": [retry.json()["data"]]
+    }
     with app.state.session_factory() as session:
         assert session.scalar(select(func.count()).select_from(MiniCouponClaim)) == 1
+
+
+def test_coupon_wallet_keeps_owned_histories_and_paginates_by_claim_time_and_id(
+    admin_client: TestClient,
+    commerce_customers: list[dict[str, Any]],
+    app: FastAPI,
+) -> None:
+    first, second = commerce_customers
+    now = datetime.now(UTC)
+    definition = {"starts_at": (now - timedelta(days=3)).isoformat()}
+    unclaimed = _coupon(admin_client, title="尚未领取", **definition)
+    expired = _coupon(admin_client, title="已领取后过期", **definition)
+    active = _coupon(admin_client, title="已领取且有效", **definition)
+    inactive = _coupon(admin_client, title="已领取后停用", **definition)
+    others = _coupon(admin_client, title="另一位客户领取", **definition)
+    for coupon in (expired, inactive, active):
+        response = admin_client.post(f"{MINI}/coupons/{coupon['id']}/claim", headers=_bearer(first))
+        assert response.status_code == 200, response.text
+    assert (
+        admin_client.post(
+            f"{MINI}/coupons/{others['id']}/claim", headers=_bearer(second)
+        ).status_code
+        == 200
+    )
+    assert (
+        admin_client.patch(
+            f"{ADMIN}/coupons/{expired['id']}",
+            json={"expires_at": (now - timedelta(minutes=1)).isoformat()},
+        ).status_code
+        == 200
+    )
+    assert (
+        admin_client.patch(
+            f"{ADMIN}/coupons/{inactive['id']}", json={"is_active": False}
+        ).status_code
+        == 200
+    )
+    older = now - timedelta(days=2)
+    tied = now - timedelta(hours=1)
+    with app.state.session_factory() as session:
+        claims = list(
+            session.scalars(
+                select(MiniCouponClaim).where(
+                    MiniCouponClaim.customer_id == first["customer"]["id"]
+                )
+            )
+        )
+        for claim in claims:
+            claim.claimed_at = older if claim.coupon_id == expired["id"] else tied
+        session.commit()
+
+    wallet = admin_client.get(f"{MINI}/coupons", headers=_bearer(first)).json()["data"]
+    assert [coupon["coupon_id"] for coupon in wallet] == [
+        active["id"],
+        inactive["id"],
+        expired["id"],
+    ]
+    assert wallet[0]["claimed_at"] == wallet[1]["claimed_at"]
+    assert wallet[1]["is_active"] is False
+    assert datetime.fromisoformat(wallet[-1]["expires_at"].replace("Z", "+00:00")) < now
+    assert all(coupon["claimed_at"] is not None for coupon in wallet)
+    for page, expected in enumerate(wallet, start=1):
+        response = admin_client.get(
+            f"{MINI}/coupons?page={page}&page_size=1", headers=_bearer(first)
+        )
+        assert response.json() == {"data": [expected]}
+    assert admin_client.get(
+        f"{MINI}/coupons?page=4&page_size=1", headers=_bearer(first)
+    ).json() == {"data": []}
+    other_wallet = admin_client.get(f"{MINI}/coupons", headers=_bearer(second)).json()["data"]
+    assert [coupon["coupon_id"] for coupon in other_wallet] == [others["id"]]
+
+    public = admin_client.get("/api/v1/shop/home")
+    assert public.status_code == 200, public.text
+    assert {coupon["id"] for coupon in public.json()["data"]["coupons"]} == {
+        unclaimed["id"],
+        active["id"],
+        others["id"],
+    }
 
 
 def test_coupon_admin_updates_validate_merged_definition_and_deactivation(
