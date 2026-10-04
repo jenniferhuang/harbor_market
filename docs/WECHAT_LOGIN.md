@@ -77,9 +77,9 @@ npm run lint
 
 ## 当前 Mac 的开发预览
 
-本次登录功能在 `harbor_market-wechat-miniprogram` 工作树上整合，主目录的 `main` 分支尚未合并该功能。
-本地服务沿用主目录的私有 `.env`、持久开发数据库和原有 MinIO 数据。已构建本地镜像后，可从本开发
-工作树启动或重新创建服务：
+登录及首页功能已经合并到主目录的 `main` 分支。
+本地服务沿用主目录的私有 `.env`、持久开发数据库和原有 MinIO 数据。已构建本地镜像后，可从主目录
+启动或重新创建服务：
 
 ```bash
 task_main_root=/Users/jennifer.huang/Documents/AI_Workspace/Tools/harbor_market
@@ -88,13 +88,14 @@ MINIO_DATA_DIR="$task_main_root/.data/local-preview/minio" \
   -f compose.yaml -f compose.development-db.yaml up -d --no-build
 ```
 
-修改微信凭证后也从此工作树执行上述命令，使新增 Compose 配置传入后端。
+修改微信凭证后也从主目录执行上述命令，使新增 Compose 配置传入后端。
 为避免切换工作树时误用新的空目录，MinIO 路径明确指向原始绝对目录。
 当前 `.env` 使用 `WECHAT_MINIPROGRAM_AUTH_MODE=disabled`，AppSecret 留空，待填写真实凭证后切换到 `live`。
 
 2026-10-04 已部署本地预览并应用迁移 0005。健康检查、已发布商品及其 PNG 图片、未登录客户接口的
 401 响应和关闭真实登录时的 503 响应均通过检查。85 项小程序测试、48 项网页测试和 420 项后端隔离测试通过。
 微信开发者工具自动控制超时，尚未完成模拟器中的视觉检查；真实微信登录仍待有效凭证和设备验证。
+后续首页功能和合并到main后的完整检查见 [main合并测试记录](MAIN_INTEGRATION_TESTS.md)。
 
 本次 Docker 内的前端 npm 安装报告 `Exit handler never called`；本地 Node.js 构建和类型检查通过后，
 使用生成的 `frontend/dist` 打包为相同 Nginx 运行时镜像。临时构建文件在主目录忽略的

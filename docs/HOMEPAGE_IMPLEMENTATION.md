@@ -1,8 +1,9 @@
 # 港湾集市：首页实现与配置
 
 本次按主项目 `docs/02首页.md` 及其原型实现，沿用现有青绿色界面。
-开发目录为 `/Users/jennifer.huang/Documents/AI_Workspace/Tools/harbor_market-wechat-miniprogram`，
-分支为 `wechat-miniprogram`。首页功能尚未合并到 `main`。
+登录及首页的后端、网页和小程序代码已合并到主项目的 `main`。
+主目录为 `/Users/jennifer.huang/Documents/AI_Workspace/Tools/harbor_market`。
+`harbor_market-wechat-miniprogram` 工作树保留用于后续开发。
 
 ## 小程序页面
 
@@ -56,15 +57,15 @@
 在微信开发者工具中导入：
 
 ```text
-/Users/jennifer.huang/Documents/AI_Workspace/Tools/harbor_market-wechat-miniprogram/miniprogram
+/Users/jennifer.huang/Documents/AI_Workspace/Tools/harbor_market/miniprogram
 ```
 
 点击 **编译**。游客首页默认连接 `http://127.0.0.1:8080`。切换地址在 **我 → 连接设置**。
 真实微信登录需要匹配的真实AppID和后端AppSecret，配置方法见 [登录集成](WECHAT_LOGIN.md)。
 当前本地服务保持微信登录禁用；公开首页可以查看，领取、收藏和店主管理的真实微信联调仍需配置凭证。
 
-此分支的服务使用主项目私有 `.env` 与原有MinIO目录，避免更换媒体存储位置。
-数据库升级和新版本镜像准备好后，可从此开发目录重启现有服务：
+服务使用主项目私有 `.env` 与原有MinIO目录。
+数据库升级和新版本镜像准备好后，可从主项目目录重启现有服务：
 
 ```bash
 MINIO_DATA_DIR=/Users/jennifer.huang/Documents/AI_Workspace/Tools/harbor_market/.data/local-preview/minio \
@@ -89,4 +90,5 @@ MINIO_DATA_DIR=/Users/jennifer.huang/Documents/AI_Workspace/Tools/harbor_market/
 
 本次网页运行镜像使用通过本机Node22构建的 `frontend/dist` 和项目Nginx配置；临时镜像上下文在
 主项目忽略目录 `.data/homepage-preview/frontend/`。此前Docker内npm安装失败，未修改源码Dockerfile。
-微信开发者工具的原生窗口自动化超时，因此尚未完成模拟器视觉确认；需在工具中编译此开发目录。
+微信开发者工具的原生窗口自动化超时，因此尚未完成模拟器视觉确认；需在工具中编译上述主目录。
+合并后的完整检查见 [main合并测试记录](MAIN_INTEGRATION_TESTS.md)。

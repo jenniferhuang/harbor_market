@@ -1,12 +1,14 @@
 # Harbor Market: project folders and shared backend
 
-This guide describes the merged local project on 2026-10-01.
+This guide describes the merged local project, updated on 2026-10-04.
 
 The primary project is `/Users/jennifer.huang/Documents/AI_Workspace/Tools/harbor_market`.
 The WeChat Mini Program branch was merged into `main` as `bfae315` and pushed to GitHub.
 That merge also contains the mock payments implementation from `codex/wechat-payments-mock`
 (`8e53909`); the payments branch has no additional commits to merge.
 The web client, native WeChat client, server code, and deployment configuration now live here.
+The later customer-login and homepage backend/web/Mini Program changes are also merged into
+`main` at `cc69c4b`. See [main integration tests](MAIN_INTEGRATION_TESTS.md) for final validation.
 The development PostgreSQL service and its persistent database live on
 `aqa01-i01-ocr01.int.rclabenv.com`, outside this Mac directory.
 
@@ -100,9 +102,10 @@ preview. The Mini Program setup guide describes the AppID and release paths.
 
 ## Mini Program development worktree
 
-The fresh development checkout is
+The retained development checkout is
 `/Users/jennifer.huang/Documents/AI_Workspace/Tools/harbor_market-wechat-miniprogram`,
 on branch `wechat-miniprogram`, created from the updated `main`.
+Its customer-login and homepage commits are now also present in the primary `main` checkout.
 It contains the complete project, including both the Mini Program and mock payments backend.
 Import its `miniprogram/` subfolder into WeChat DevTools when developing on this branch.
 
@@ -127,7 +130,7 @@ Product/category browsing, SKU selection, the local cart, and optional WeChat cu
 implemented. Customer sessions, nicknames, and private avatars use the shared backend; real login
 requires the matching Mini Program AppID and backend AppSecret. The cart is stored on the device.
 The six-module homepage, coupons and claims, favorites, bound-owner shop editing, and historical
-purchase records are also implemented on this development branch. Administrators can record
+purchase records are also implemented on `main`. Administrators can record
 completed sales for the homepage ranking. Checkout, fulfillment, stock reservation, coupon
 redemption, and live WeChat Pay still need implementation.
 The shared backend already contains a mock payment state machine and provider for development;

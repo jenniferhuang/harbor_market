@@ -39,7 +39,7 @@ docker compose exec backend python -m app.cli promote-admin YOUR_USERNAME
 
 The development application is configured to use the persistent database on
 `aqa01-i01-ocr01.int.rclabenv.com`: PostgreSQL 16.13, database `xiangyue_xiamen`, and application
-role `harbor_market`. This development branch includes migration
+role `harbor_market`. The merged `main` branch includes migration
 `0006_add_shop_homepage_commerce`; see the database runbook for the verified running schema.
 Both preview accounts were preserved, including one administrator. MinIO and existing media
 remain local.
@@ -169,7 +169,7 @@ MiB, leaving bounded JSON-envelope room around WeChat's maximum 1 MiB ciphertext
 Mock client parameters are marked `MOCK-HMAC-SHA256` and cannot be submitted to
 `wx.requestPayment`.
 
-Live WeChat Pay, customer checkout, WeChat `openid` binding, order/inventory transitions, and
+Live WeChat Pay, customer checkout, payment integration with customer identity, order/inventory transitions, and
 refunds are separate follow-up modules. Enabling a live adapter has an additional architecture gate:
 persist and commit a short claim, perform the provider network call without holding payment/order DB
 locks, then re-lock, revalidate, and apply the result. Live network calls must never run while those
