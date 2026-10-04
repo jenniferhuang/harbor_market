@@ -58,6 +58,11 @@ def create_app(
         settings.mini_login_rate_window_seconds,
         max_keys=settings.rate_limit_max_keys,
     )
+    app.state.shop_search_rate_limiter = SlidingWindowRateLimiter(
+        settings.shop_search_rate_limit,
+        settings.shop_search_rate_window_seconds,
+        max_keys=settings.rate_limit_max_keys,
+    )
     app.state.payment_gateway = payment_gateway or build_payment_gateway(
         settings,
         app.state.session_factory,

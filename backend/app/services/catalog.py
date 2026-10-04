@@ -7,9 +7,10 @@ from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.errors import ApiError
-from app.models import Category, ObjectCleanupJob, Product, ProductSku
+from app.models import Category, ObjectCleanupJob, Product, ProductSku, ShopMedia
 from app.schemas.catalog import (
     CategoryCreate,
     CategoryRead,
@@ -24,6 +25,11 @@ from app.schemas.catalog import (
     _validate_sku_attribute_references,
 )
 from app.services.object_cleanup import enqueue_object_cleanup
+
+
+def product_search_condition(query_text: str) -> ColumnElement[bool]:
+    search = f"%{query_text.strip()}%"
+    return or_(Product.name.ilike(search), Product.product_code.ilike(search))
 
 
 class CatalogService:
@@ -83,6 +89,12 @@ class CatalogService:
                 "category_in_use",
                 "Category cannot be deleted while it has child categories or products",
             )
+        media_keys = list(
+            session.scalars(
+                select(ShopMedia.object_key).where(ShopMedia.category_id == category_id)
+            )
+        )
+        enqueue_object_cleanup(session, media_keys, reason="shop_category_deleted")
         session.delete(category)
         try:
             session.commit()
@@ -124,8 +136,7 @@ class CatalogService:
     ) -> tuple[list[Product], int]:
         filters = []
         if query_text:
-            search = f"%{query_text.strip()}%"
-            filters.append(or_(Product.name.ilike(search), Product.product_code.ilike(search)))
+            filters.append(product_search_condition(query_text))
         if category_id is not None:
             filters.append(Product.category_id == category_id)
         if category_code:

@@ -20,9 +20,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "no-referrer")
-        if request.url.path.startswith(("/api/v1/auth", "/api/v1/admin", "/api/v1/mini/auth")):
+        if request.url.path.startswith(("/api/v1/auth", "/api/v1/admin", "/api/v1/mini/")):
             response.headers["Cache-Control"] = "private, no-store"
-        if request.url.path.startswith("/api/v1/mini/auth"):
+        if request.url.path.startswith("/api/v1/mini/"):
             vary = response.headers.get("Vary", "")
             if "authorization" not in {value.strip().casefold() for value in vary.split(",")}:
                 response.headers["Vary"] = f"{vary}, Authorization" if vary else "Authorization"
