@@ -1,42 +1,43 @@
-<view class="page-shell catalog-page" aria-role="main">
-  <view class="catalog-heading">
-    <text class="catalog-eyebrow">港湾集市</text>
-    <text class="page-heading">商品选购</text>
-    <text class="page-intro">按品类挑选，找到你喜欢的好物。</text>
+<view class="catalog-page" aria-role="main">
+  <view class="catalog-top">
+    <button class="catalog-search" bindtap="openSearch" aria-label="进入全局商品搜索">
+      <text class="catalog-search__icon" aria-hidden="true">⌕</text>
+      <text class="catalog-search__hint">搜索商品名称或编码</text>
+      <text class="catalog-search__label">搜索</text>
+    </button>
   </view>
-  <button class="catalog-search surface" bindtap="openSearch" aria-label="进入全局商品搜索">
-    <text class="catalog-search__icon" aria-hidden="true">⌕</text>
-    <text class="catalog-search__hint">搜索商品名称或编码</text>
-    <text class="catalog-search__label">搜索</text>
-  </button>
-
-  <scroll-view class="category-strip" scroll-x="true" enhanced="true" show-scrollbar="false">
-    <view class="category-strip__inner" aria-role="group" aria-label="商品类目筛选">
-      <button class="category-chip {{selectedCategory == '' ? 'category-chip--active' : ''}}" data-code="" bindtap="selectCategory" aria-label="查看全部商品">全部</button>
-      <button wx:for="{{categories}}" wx:key="code" class="category-chip {{selectedCategory == item.code ? 'category-chip--active' : ''}}" data-code="{{item.code}}" bindtap="selectCategory" aria-label="按 {{item.name}} 筛选">{{item.name}}</button>
+  <view class="catalog-workspace">
+    <view class="category-rail {{railCollapsed ? 'category-rail--collapsed' : ''}}">
+      <button class="category-toggle" bindtap="toggleRail" aria-label="{{railCollapsed ? '展开商品分类' : '收起商品分类'}}" aria-expanded="{{!railCollapsed}}"><text>{{railCollapsed ? '›' : '‹'}}</text><text wx:if="{{!railCollapsed}}">分类</text></button>
+      <scroll-view wx:if="{{!railCollapsed}}" class="category-scroll" scroll-y="true" scroll-into-view="{{railIntoView}}" show-scrollbar="false">
+        <view aria-role="group" aria-label="商品分类">
+          <button wx:for="{{categories}}" wx:key="code" id="catalog-category-{{index}}" class="category-item {{selectedCategory == item.code ? 'category-item--active' : ''}}" data-code="{{item.code}}" bindtap="selectCategory" aria-label="查看 {{item.name}}{{selectedCategory == item.code ? '，当前选中' : ''}}">{{item.name}}</button>
+          <text wx:if="{{!categories.length && !loading}}" class="category-empty">全部商品</text>
+        </view>
+      </scroll-view>
     </view>
-  </scroll-view>
-  <view wx:if="{{categoryErrorMessage}}" class="inline-error" aria-role="alert"><text>{{categoryErrorMessage}}</text><button class="inline-error__retry" bindtap="loadCategories">重试类目</button></view>
-
-  <view wx:if="{{loading && !products.length}}" class="surface status-panel" aria-role="status">
-    <text class="status-panel__title">正在加载商品…</text><text class="status-panel__message">请稍候</text>
+    <scroll-view id="catalog-products" class="product-scroll" scroll-y="true" scroll-into-view="{{productIntoView}}" lower-threshold="80" bindscroll="onProductScroll" bindscrolltolower="loadMore" show-scrollbar="false">
+      <view wx:if="{{categoryErrorMessage}}" class="catalog-error" aria-role="alert"><text>{{categoryErrorMessage}}</text><button class="catalog-text-button" bindtap="retry">重试分类</button></view>
+      <view wx:if="{{loading && !sections.length}}" class="catalog-status" aria-role="status"><text class="catalog-status__title">正在加载商品…</text></view>
+      <view wx:for="{{sections}}" wx:key="anchor" wx:for-item="section" id="{{section.anchor}}" class="catalog-section">
+        <view class="category-divider"><view class="category-divider__line" /><text>{{section.name}}</text><view class="category-divider__line" /></view>
+        <view wx:for="{{section.products}}" wx:key="productCode" wx:for-item="product" class="product-row" data-code="{{product.productCode}}" bindtap="openProduct" aria-label="查看 {{product.name}} 商品详情">
+          <view class="product-row__cover"><image wx:if="{{product.coverUrl}}" class="product-row__image" src="{{product.coverUrl}}" mode="aspectFit" lazy-load="true" aria-label="{{product.name}}" /><text wx:else class="product-row__placeholder">暂无图片</text></view>
+          <view class="product-row__body">
+            <text class="product-row__name">{{product.name}}</text>
+            <text wx:if="{{product.subtitle}}" class="product-row__subtitle">{{product.subtitle}}</text>
+            <text class="product-row__stock {{!product.available ? 'product-row__stock--empty' : ''}}">{{product.stockLabel}}{{product.unit ? ' · ' + product.unit : ''}}</text>
+            <view class="product-row__bottom"><view class="product-row__prices"><text class="product-row__price">{{product.displayPrice}}</text><text wx:if="{{product.marketPrice}}" class="product-row__market">{{product.marketPrice}}</text></view><button class="product-row__choose" data-code="{{product.productCode}}" catchtap="chooseProduct" disabled="{{!product.available}}" aria-label="选择 {{product.name}} 的规格">+</button></view>
+          </view>
+        </view>
+        <view wx:if="{{section.complete && !section.products.length}}" class="catalog-status"><text class="catalog-status__title">暂无在售商品</text><text class="catalog-status__help">这个分类暂时没有商品，可以继续看看其他分类。</text></view>
+        <view wx:if="{{section.errorMessage}}" class="catalog-error" aria-role="alert"><text>{{section.errorMessage}}</text><button class="catalog-text-button" bindtap="retrySection">重新加载</button></view>
+      </view>
+      <view wx:if="{{loading && sections.length}}" class="catalog-footer" aria-role="status">正在加载商品…</view>
+      <button wx:elif="{{!errorMessage && !endReached && sections.length}}" class="catalog-more" bindtap="loadMore">{{nextCategoryName ? '继续浏览：' + nextCategoryName : '加载更多商品'}}</button>
+      <view wx:elif="{{endReached}}" class="catalog-footer">已经看到最后一个分类了</view>
+      <view class="catalog-bottom-space" />
+    </scroll-view>
   </view>
-  <view wx:elif="{{errorMessage && !products.length}}" class="surface status-panel" aria-role="alert">
-    <text class="status-panel__title">目录加载失败</text><text class="status-panel__message status-panel__message--error">{{errorMessage}}</text>
-    <button class="secondary-button status-panel__action" bindtap="retry">重新加载</button>
-  </view>
-  <view wx:elif="{{!products.length}}" class="surface status-panel">
-    <text class="status-panel__title">暂无在售商品</text><text class="status-panel__message">{{selectedCategory ? '这个品类暂时没有商品，试试其他品类。' : '店家上架好物后，会在这里展示。'}}</text>
-    <button wx:if="{{selectedCategory}}" class="secondary-button status-panel__action" bindtap="resetFilters">查看全部商品</button>
-  </view>
-  <view wx:else>
-    <view class="results-heading"><text>共 {{total}} 件商品</text><text wx:if="{{loading}}" class="results-heading__loading" aria-role="status">正在更新…</text></view>
-    <view class="product-grid"><product-card wx:for="{{products}}" wx:key="productCode" item="{{item}}" bind:select="openProduct" /></view>
-    <view wx:if="{{errorMessage}}" class="inline-error" aria-role="alert"><text>{{errorMessage}}</text><button class="inline-error__retry" bindtap="retry">重试</button></view>
-    <view class="pagination" aria-role="group" aria-label="商品分页">
-      <button class="secondary-button pagination__button" disabled="{{loading || page == 1}}" bindtap="previousPage">上一页</button>
-      <text class="pagination__label">第 {{page}} / {{totalPages}} 页</text>
-      <button class="secondary-button pagination__button" disabled="{{loading || page >= totalPages}}" bindtap="nextPage">下一页</button>
-    </view>
-  </view>
+  <cart-dock id="cart-dock" inset-bottom="{{0}}" />
 </view>

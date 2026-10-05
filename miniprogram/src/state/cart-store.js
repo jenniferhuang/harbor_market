@@ -172,6 +172,31 @@ function positiveQuantity(quantity) {
   return quantity
 }
 
+function matchingSkuItems(cart, productCode, skuCode) {
+  return normalizeCart(cart).items.filter((item) => item.productCode === productCode && item.skuCode === skuCode)
+}
+
+function cartQuantityForSku(cart, productCode, skuCode) {
+  return matchingSkuItems(cart, productCode, skuCode).reduce((quantity, item) => quantity + item.quantity, 0)
+}
+
+function sharedStockLimit(items) {
+  const snapshots = items.map((item) => item.stockQuantity).filter((quantity) => quantity !== null)
+  return snapshots.length ? Math.min(...snapshots) : null
+}
+
+function maxQuantityForItem(cart, key) {
+  const normalized = normalizeCart(cart)
+  const item = normalized.items.find((candidate) => candidate.key === key)
+  if (!item) return 0
+  const matching = matchingSkuItems(normalized, item.productCode, item.skuCode)
+  const stock = sharedStockLimit(matching)
+  const others = matching.reduce((quantity, candidate) => quantity + (candidate.key === key ? 0 : candidate.quantity), 0)
+  const remaining = stock === null ? MAX_ITEM_QUANTITY : Math.max(0, stock - others)
+  // Preserve the current value so older overstocked carts can still be reduced.
+  return Math.max(item.quantity, Math.min(MAX_ITEM_QUANTITY, remaining))
+}
+
 function addItem(cart, product, selections, quantity = 1) {
   positiveQuantity(quantity)
   const validation = validateSelections(product, selections)
@@ -193,7 +218,7 @@ function addItem(cart, product, selections, quantity = 1) {
   if (nextQuantity > MAX_ITEM_QUANTITY) {
     throw new RangeError(`单件商品最多购买${MAX_ITEM_QUANTITY}件`)
   }
-  if (stockQuantity !== null && nextQuantity > stockQuantity) {
+  if (cartQuantityForSku(normalized, product.product_code, sku.sku_code) + quantity > stockQuantity) {
     throw new RangeError('购买数量超过当前库存')
   }
 
@@ -218,7 +243,11 @@ function addItem(cart, product, selections, quantity = 1) {
     if (items.length >= MAX_CART_LINES) throw new RangeError('购物车商品种类已达到上限')
     items.push(safeItem)
   }
-  return persist({ version: CART_VERSION, items })
+  // A successful addition carries a fresh server snapshot for every customization
+  // of this SKU, rather than leaving older lines with contradictory stock limits.
+  return persist({ version: CART_VERSION, items: items.map((line) =>
+    line.productCode === item.productCode && line.skuCode === item.skuCode
+      ? { ...line, stockQuantity } : line) })
 }
 
 function updateQuantity(cart, key, quantity) {
@@ -230,7 +259,10 @@ function updateQuantity(cart, key, quantity) {
   const index = normalized.items.findIndex((item) => item.key === key)
   if (index < 0) return normalized
   const item = normalized.items[index]
-  if (item.stockQuantity !== null && quantity > item.stockQuantity) {
+  const matching = matchingSkuItems(normalized, item.productCode, item.skuCode)
+  const stock = sharedStockLimit(matching)
+  const total = matching.reduce((sum, candidate) => sum + candidate.quantity, 0) - item.quantity + quantity
+  if (quantity > item.quantity && stock !== null && total > stock) {
     throw new RangeError('购买数量超过当前库存')
   }
   const items = normalized.items.slice()
@@ -271,8 +303,10 @@ function cartSummary(cart) {
 module.exports = {
   addItem,
   cartSummary,
+  cartQuantityForSku,
   clearCart,
   loadCart,
+  maxQuantityForItem,
   removeItem,
   updateQuantity,
 }

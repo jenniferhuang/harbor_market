@@ -3,6 +3,7 @@
   "enablePullDownRefresh": true,
   "backgroundTextStyle": "dark",
   "usingComponents": {
-    "quantity-stepper": "/components/quantity-stepper/quantity-stepper"
+    "quantity-stepper": "/components/quantity-stepper/quantity-stepper",
+    "cart-dock": "/components/cart-dock/cart-dock"
   }
 }

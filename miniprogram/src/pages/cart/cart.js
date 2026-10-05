@@ -5,6 +5,7 @@ const {
   removeItem,
   clearCart,
   cartSummary,
+  maxQuantityForItem,
 } = require('../../state/cart-store')
 const { formatCents } = require('../../utils/money')
 
@@ -12,14 +13,14 @@ function messageFor(error, fallback) {
   return error && typeof error.message === 'string' && error.message ? error.message : fallback
 }
 
-function cartItemView(item) {
+function cartItemView(item, cart) {
   const stockQuantity = Number.isInteger(item.stockQuantity) ? item.stockQuantity : 999
   return {
     ...item,
     coverUrl: absoluteMediaUrl(item.coverUrl || ''),
     displayUnitPrice: formatCents(item.unitPriceCents),
     displayLineTotal: formatCents(item.unitPriceCents * item.quantity),
-    maxQuantity: Math.max(1, Math.min(99, stockQuantity)),
+    maxQuantity: maxQuantityForItem(cart, item.key),
     stockLabel: stockQuantity >= 999 ? '' : `库存记录：${stockQuantity}`,
   }
 }
@@ -47,7 +48,7 @@ Page({
       const summary = cartSummary(cart)
       this.setData({
         cart,
-        items: cart.items.map(cartItemView),
+        items: cart.items.map((item) => cartItemView(item, cart)),
         summary,
         displayTotal: formatCents(summary.totalCents),
         errorMessage: '',
@@ -62,7 +63,7 @@ Page({
   changeQuantity(event) {
     const itemKey = event.currentTarget.dataset.key
     try {
-      const cart = updateQuantity(this.data.cart, itemKey, event.detail.value)
+      const cart = updateQuantity(loadCart(), itemKey, event.detail.value)
       this.applyCart(cart)
     } catch (error) {
       wx.showModal({
@@ -84,7 +85,7 @@ Page({
       success: (result) => {
         if (!result.confirm) return
         try {
-          this.applyCart(removeItem(this.data.cart, itemKey))
+          this.applyCart(removeItem(loadCart(), itemKey))
         } catch (error) {
           wx.showModal({
             title: '移除失败',
@@ -135,7 +136,7 @@ Page({
     const summary = cartSummary(cart)
     this.setData({
       cart,
-      items: cart.items.map(cartItemView),
+      items: cart.items.map((item) => cartItemView(item, cart)),
       summary,
       displayTotal: formatCents(summary.totalCents),
       errorMessage: '',

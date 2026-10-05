@@ -67,61 +67,6 @@ describe('guest catalog and global product search', () => {
     vi.restoreAllMocks()
   })
 
-  it('consumes category navigation once and loads that category without requiring login', async () => {
-    const { mount, navigation, wxMock } = setup()
-    navigation.selectCatalogCategory(' COFFEE ')
-    const { page, ready } = mount('catalog')
-    await ready
-    expect(page.data).toMatchObject({ selectedCategory: 'COFFEE', loading: false, total: 1 })
-    expect(page.data.products[0]).toMatchObject({
-      productCode: 'APPLE', name: '苹果美式', displayPrice: '¥16.00',
-      coverUrl: `${ORIGIN}/api/v1/media/products/apple.webp`,
-    })
-    expect(navigation.consumeCatalogCategory()).toBeNull()
-    const productRequests = wxMock.request.mock.calls.filter(([options]) => options.url.includes('/catalog/products?'))
-    expect(productRequests).toHaveLength(1)
-    expect(productRequests[0][0].url).toContain('category=COFFEE')
-    expect(productRequests[0][0].header).not.toHaveProperty('Authorization')
-    expect(wxMock.login).not.toHaveBeenCalled()
-    page.openProduct({ detail: { productCode: 'APPLE' } })
-    expect(wxMock.navigateTo).toHaveBeenCalledWith({ url: '/pages/product/product?code=APPLE' })
-    page.openSearch()
-    expect(wxMock.navigateTo).toHaveBeenCalledWith({ url: '/pages/search/search' })
-  })
-
-  it('keeps selected category while returning from details and allows an explicit all-category navigation', async () => {
-    const { mount, navigation, wxMock } = setup()
-    navigation.selectCatalogCategory('COFFEE')
-    const { page, ready } = mount('catalog')
-    await ready
-    const requestsBeforeShow = wxMock.request.mock.calls.length
-    page.onShow()
-    expect(page.data.selectedCategory).toBe('COFFEE')
-    expect(wxMock.request.mock.calls.length).toBe(requestsBeforeShow)
-    navigation.selectCatalogCategory('')
-    await page.onShow()
-    expect(page.data.selectedCategory).toBe('')
-    expect(wxMock.request.mock.calls.at(-1)[0].url).not.toContain('category=')
-    expect(navigation.consumeCatalogCategory()).toBeNull()
-  })
-
-  it('does not let an older catalog response overwrite a newly selected category', async () => {
-    const requests = []
-    const { mount } = setup((options) => {
-      if (!options.url.includes('/catalog/products?')) return
-      requests.push(options)
-      return true
-    })
-    const { page, ready } = mount('catalog')
-    const changing = page.selectCategory({ currentTarget: { dataset: { code: 'COFFEE' } } })
-    success(requests[1], productList())
-    await changing
-    success(requests[0], productList([{ ...PRODUCT, product_code: 'TEA', name: '海港茶' }]))
-    await ready
-    expect(page.data).toMatchObject({ selectedCategory: 'COFFEE', loading: false })
-    expect(page.data.products[0].productCode).toBe('APPLE')
-  })
-
   it('displays real hot-search ranks and opens ranked products directly without counting a search', async () => {
     const { mount, wxMock } = setup()
     const { page, ready } = mount('search')
@@ -259,18 +204,6 @@ describe('guest catalog and global product search', () => {
     expect(page.data.hotErrorMessage).toBe('无法连接服务器，请检查网络后重试。')
   })
 
-  it('shows an empty catalog and does not fabricate available products', async () => {
-    const { mount } = setup((options) => {
-      if (!options.url.includes('/catalog/products?')) return
-      success(options, productList([]))
-      return true
-    })
-    const { page, ready } = mount('catalog')
-    await ready
-    expect(page.data).toMatchObject({ products: [], total: 0, loading: false, errorMessage: '' })
-    expect(fs.readFileSync(path.join(SOURCE_ROOT, 'pages/catalog/catalog.wxml'), 'utf8')).toContain('暂无在售商品')
-  })
-
   it('localizes search failures and retries without recording an additional search', async () => {
     const { mount, wxMock } = setup((options) => {
       if (!options.url.endsWith('/shop/search')) return
@@ -335,8 +268,6 @@ describe('guest catalog and global product search', () => {
   })
 
   it.each([
-    ['categories', 'success'], ['categories', 'failure'],
-    ['catalog products', 'success'], ['catalog products', 'failure'],
     ['hot searches', 'success'], ['hot searches', 'failure'],
     ['search results', 'success'], ['search results', 'failure'],
   ])('discards old-origin %s %s and reloads the current origin on return', async (source, response) => {

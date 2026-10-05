@@ -8,10 +8,11 @@ address, or invoke WeChat Pay.
 ## Current scope
 
 - Browse active categories and published products.
-- Filter and page through the catalog.
-- View product media, details, SKUs, specifications, price, and stock display state.
+- Browse a collapsible category sidebar and consecutive product sections with bounded lazy loading.
+- View separate cover/gallery and detail images, product attributes, active SKUs, specifications, price, and stock.
 - Select a valid SKU/options combination.
 - Add, update, remove, and clear local cart lines using integer-fen arithmetic.
+- Open the shared bottom cart panel from the catalog or product detail, and choose specifications in a bottom sheet.
 - Close the optional login popup and continue browsing as a guest.
 - Sign in through `wx.login`, choose an avatar through WeChat's native picker, and optionally enter a nickname.
 - Restore a verified customer session, edit profile information from **我**, and log out without clearing the cart.
@@ -26,6 +27,8 @@ management entry and feature boundaries. Purchase records are administrator-ente
 sales; the Mini Program still cannot submit checkout orders.
 
 See [the login integration guide](../docs/WECHAT_LOGIN.md) for the backend configuration and API contract.
+See [商品选购 implementation](../docs/CATALOG_SHOPPING_IMPLEMENTATION.md) for the category/detail UI,
+draft product data, backend fields, and current verification results.
 The interface text in both the Mini Program and browser application is Chinese.
 
 The cart subtotal is informational. Only the future backend order service may confirm current price,

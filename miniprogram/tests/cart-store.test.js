@@ -173,4 +173,75 @@ describe('device-local cart store', () => {
     const store = require('../src/state/cart-store')
     expect(() => store.clearCart()).toThrow('购物车保存失败')
   })
+
+  it('shares SKU stock across different customization lines for additions and quantity changes', () => {
+    const { store, storage } = setup()
+    const product = productFixture(5)
+    let cart = store.addItem(store.loadCart(), product, { size: ['large'], addon: [] }, 2)
+    cart = store.addItem(cart, product, { size: ['large'], addon: ['pearl'] }, 2)
+    expect(store.cartQuantityForSku(cart, 'TEA', 'TEA-L')).toBe(4)
+    expect(store.maxQuantityForItem(cart, cart.items[0].key)).toBe(3)
+    expect(() => store.addItem(cart, product, { size: ['large'], addon: ['pearl'] }, 2)).toThrow('购买数量超过当前库存')
+    expect(() => store.updateQuantity(cart, cart.items[0].key, 4)).toThrow('购买数量超过当前库存')
+    expect(storage.get('harbor_market_cart')).toEqual(cart)
+    const updated = store.updateQuantity(cart, cart.items[0].key, 3)
+    expect(store.cartQuantityForSku(updated, 'TEA', 'TEA-L')).toBe(5)
+    expect(cart.items[0].quantity).toBe(2)
+  })
+
+  it('uses the lowest known shared snapshot while allowing recovery from legacy overstock', () => {
+    const { store, storage } = setup()
+    const product = productFixture(10)
+    let cart = store.addItem(store.loadCart(), product, { size: ['large'], addon: [] }, 4)
+    cart = store.addItem(cart, product, { size: ['large'], addon: ['pearl'] }, 2)
+    const legacy = { ...cart, items: cart.items.map((item, index) => ({ ...item, stockQuantity: index ? 3 : 8 })) }
+    storage.set('harbor_market_cart', legacy)
+    expect(store.maxQuantityForItem(legacy, legacy.items[0].key)).toBe(4)
+    expect(() => store.updateQuantity(legacy, legacy.items[0].key, 5)).toThrow('购买数量超过当前库存')
+    const decreased = store.updateQuantity(legacy, legacy.items[0].key, 3)
+    expect(store.cartQuantityForSku(decreased, 'TEA', 'TEA-L')).toBe(5)
+    const recovered = store.updateQuantity(decreased, decreased.items[1].key, 0)
+    expect(recovered.items).toHaveLength(1)
+    expect(recovered.items[0].quantity).toBe(3)
+  })
+
+  it('refreshes every customization snapshot from an actual successful addition', () => {
+    const { store } = setup()
+    let cart = store.addItem(store.loadCart(), productFixture(5), { size: ['large'], addon: [] }, 1)
+    cart = store.addItem(cart, productFixture(5), { size: ['large'], addon: ['pearl'] }, 1)
+    const prior = cart
+    cart = store.addItem(cart, productFixture(8), { size: ['large'], addon: [] }, 1)
+    expect(cart.items.map((item) => item.stockQuantity)).toEqual([8, 8])
+    expect(prior.items.map((item) => item.stockQuantity)).toEqual([5, 5])
+    cart = store.addItem(cart, productFixture(4), { size: ['large'], addon: ['pearl'] }, 1)
+    expect(cart.items.map((item) => item.stockQuantity)).toEqual([4, 4])
+    expect(store.cartQuantityForSku(cart, 'TEA', 'TEA-L')).toBe(4)
+    expect(store.maxQuantityForItem(cart, cart.items[0].key)).toBe(2)
+  })
+
+  it('keeps distinct SKUs and products independent even when customization names match', () => {
+    const { store } = setup()
+    const product = productFixture(2)
+    product.specifications[0].options.push({ code: 'small', name: '小杯', price_delta_cents: 0 })
+    product.skus.push({ ...product.skus[0], sku_code: 'TEA-S', name: '小杯', attributes: { size: 'small' }, is_default: false })
+    let cart = store.addItem(store.loadCart(), product, { size: ['large'], addon: [] }, 2)
+    cart = store.addItem(cart, product, { size: ['small'], addon: [] }, 2)
+    cart = store.addItem(cart, { ...product, product_code: 'OTHER' }, { size: ['large'], addon: [] }, 2)
+    expect(store.cartQuantityForSku(cart, 'TEA', 'TEA-L')).toBe(2)
+    expect(store.cartQuantityForSku(cart, 'TEA', 'TEA-S')).toBe(2)
+    expect(store.cartSummary(cart).totalQuantity).toBe(6)
+    expect(store.maxQuantityForItem(cart, 'missing')).toBe(0)
+  })
+
+  it('retains the legacy cap for unknown stock but enforces any known shared snapshot', () => {
+    const { store } = setup()
+    let cart = store.addItem(store.loadCart(), productFixture(5), { size: ['large'], addon: [] }, 1)
+    cart = store.addItem(cart, productFixture(5), { size: ['large'], addon: ['pearl'] }, 1)
+    const unknown = { ...cart, items: cart.items.map((item) => ({ ...item, stockQuantity: null })) }
+    expect(store.maxQuantityForItem(unknown, unknown.items[0].key)).toBe(99)
+    expect(store.updateQuantity(unknown, unknown.items[0].key, 99).items[0].quantity).toBe(99)
+    const mixed = { ...unknown, items: unknown.items.map((item, index) => ({ ...item, stockQuantity: index ? 3 : null })) }
+    expect(store.maxQuantityForItem(mixed, mixed.items[0].key)).toBe(2)
+    expect(() => store.updateQuantity(mixed, mixed.items[0].key, 3)).toThrow('购买数量超过当前库存')
+  })
 })

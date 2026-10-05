@@ -8,26 +8,58 @@ const {
   calculateUnitPrice,
   selectionSummary,
 } = require('../../domain/catalog')
-const { loadCart, addItem } = require('../../state/cart-store')
+const { loadCart, addItem, cartQuantityForSku } = require('../../state/cart-store')
 const { formatCents } = require('../../utils/money')
 const { getApiBaseUrl } = require('../../api/client')
 const { getAuthState, subscribe } = require('../../state/auth-store')
 const { getFavorite, setFavorite } = require('../../api/customer-shop')
 
 function messageFor(error, fallback) {
-  return error && typeof error.message === 'string' && error.message ? error.message : fallback
+  return error && typeof error.message === 'string' && /[\u3400-\u9fff]/.test(error.message) ? error.message : fallback
 }
 
-function normalizedImages(product) {
+function normalizedImages(product, role) {
   const images = Array.isArray(product.images) ? product.images : []
-  return images.map((image) => ({
+  return images.filter((image) => image && (role === 'detail'
+    ? image.image_type === 'detail'
+    : image.image_type === 'cover' || image.image_type === 'gallery' || !image.image_type))
+    .slice().sort((left, right) => {
+      if (role !== 'detail' && (left.image_type === 'cover') !== (right.image_type === 'cover')) return left.image_type === 'cover' ? -1 : 1
+      return (left.sort_order || 0) - (right.sort_order || 0) || (left.id || 0) - (right.id || 0)
+    }).map((image) => ({
     ...image,
     displayUrl: absoluteMediaUrl(image.url || image.media_url || ''),
-  }))
+  })).filter((image) => image.displayUrl)
+}
+
+function activeSkusFor(product) {
+  return (Array.isArray(product.skus) ? product.skus : []).filter((sku) => sku && sku.is_active !== false)
+    .slice().sort((left, right) => Number(Boolean(right.is_default)) - Number(Boolean(left.is_default)) ||
+      (left.sort_order || 0) - (right.sort_order || 0) || (left.id || 0) - (right.id || 0))
+}
+
+function skuRows(product, unit) {
+  return activeSkusFor(product).map((sku) => {
+    const attributesLabel = Object.entries(sku.attributes || {}).map(([code, value]) => {
+      const specification = (product.specifications || []).find((item) => item.code === code)
+      const option = specification && (specification.options || []).find((item) => item.code === value)
+      return `${specification ? specification.name : code}：${option ? option.name : value}`
+    }).join(' / ')
+    return {
+      code: sku.sku_code,
+      name: sku.name || attributesLabel || sku.sku_code || '规格',
+      attributesLabel,
+      displayPrice: formatCents(sku.price_cents),
+      marketPrice: Number(sku.market_price_cents) > sku.price_cents ? formatCents(sku.market_price_cents) : '',
+      stockText: Number.isSafeInteger(sku.stock_quantity) && sku.stock_quantity >= 0 ? `库存 ${sku.stock_quantity} ${unit}` : '库存暂未确认',
+      available: product.stock_status !== 'out_of_stock' && Number.isSafeInteger(sku.stock_quantity) && sku.stock_quantity > 0,
+    }
+  })
 }
 
 function decoratedSpecifications(product, selections) {
   const specifications = Array.isArray(product.specifications) ? product.specifications : []
+  const variantCodes = new Set(activeSkusFor(product).flatMap((sku) => Object.keys(sku.attributes || {})))
   return specifications.map((specification) => {
     const selectedCodes = selections[specification.code] || []
     return {
@@ -35,7 +67,7 @@ function decoratedSpecifications(product, selections) {
       modeLabel: specification.selection_mode === 'multiple' ? '可多选' : '单选',
       requirementLabel: specification.required ? '必选' : '可选',
       options: (specification.options || []).map((option) => {
-        const priceDelta = Number(option.price_delta_cents) || 0
+        const priceDelta = variantCodes.has(specification.code) ? 0 : Number(option.price_delta_cents) || 0
         return {
           ...option,
           selected: selectedCodes.includes(option.code),
@@ -53,10 +85,7 @@ function decoratedSpecifications(product, selections) {
 
 function stockFor(product, sku) {
   if (product.stock_status === 'out_of_stock') return 0
-  if (sku && Number.isInteger(sku.stock_quantity)) return Math.max(0, sku.stock_quantity)
-  if (product.inventory_count === 0) return 0
-  if (Number.isInteger(product.inventory_count)) return Math.max(0, product.inventory_count)
-  return 999
+  return sku && Number.isSafeInteger(sku.stock_quantity) && sku.stock_quantity >= 0 ? sku.stock_quantity : null
 }
 
 Page({
@@ -64,7 +93,15 @@ Page({
     productCode: '',
     product: null,
     images: [],
+    detailImages: [],
+    coverImageUrl: '',
     activeImageIndex: 0,
+    activeSkuRows: [],
+    hasAvailableSku: false,
+    displayUnit: '件',
+    stockStatusLabel: '',
+    inventoryLabel: '',
+    specSheetVisible: false,
     specifications: [],
     selections: {},
     selectionText: '',
@@ -84,10 +121,11 @@ Page({
     favoriteError: '',
   },
 
-  onLoad(options) {
+  onLoad(options = {}) {
     this._alive = true
     this._favoriteSequence = 0
     this._loadSequence = 0
+    this._autoChoose = options.choose === '1'
     const rawCode = typeof options.code === 'string' ? options.code : ''
     let productCode = rawCode
     try {
@@ -107,7 +145,12 @@ Page({
     this.loadProduct()
   },
 
-  onShow() { if (getAuthState().status === 'authenticated') this.loadFavorite() },
+  onShow() {
+    this.refreshCartDock()
+    this.refreshSelectionView()
+    if (getAuthState().status === 'authenticated') this.loadFavorite()
+  },
+  onHide() { this.closeSpecSheet() },
   onUnload() {
     this._alive = false
     this._favoriteSequence += 1
@@ -169,9 +212,19 @@ Page({
       const product = await fetchProduct(this.data.productCode)
       if (!this._alive || sequence !== this._loadSequence || origin !== getApiBaseUrl()) return
       const selections = initialSelections(product)
+      const images = normalizedImages(product, 'gallery')
+      const unit = product.unit || '件'
+      const rows = skuRows(product, unit)
       this.setData({
         product,
-        images: normalizedImages(product),
+        images,
+        detailImages: normalizedImages(product, 'detail'),
+        coverImageUrl: images[0] ? images[0].displayUrl : '',
+        activeSkuRows: rows,
+        hasAvailableSku: rows.some((row) => row.available),
+        displayUnit: unit,
+        stockStatusLabel: product.stock_status === 'preorder' ? '可预订' : product.stock_status === 'out_of_stock' ? '暂时缺货' : '现货',
+        inventoryLabel: Number.isSafeInteger(product.inventory_count) && product.inventory_count >= 0 ? `${product.inventory_count} ${unit}` : '',
         activeImageIndex: 0,
         selections,
         quantity: 1,
@@ -179,6 +232,10 @@ Page({
       })
       this.refreshSelectionView()
       wx.setNavigationBarTitle({ title: product.name || '商品详情' })
+      if (this._autoChoose) {
+        this._autoChoose = false
+        this.openSpecSheet()
+      }
     } catch (error) {
       if (!this._alive || sequence !== this._loadSequence || origin !== getApiBaseUrl()) return
       this.setData({
@@ -193,11 +250,39 @@ Page({
   },
 
   onGalleryChange(event) {
-    this.setData({ activeImageIndex: event.detail.current })
+    const index = Number(event.detail.current)
+    if (Number.isInteger(index) && index >= 0 && index < this.data.images.length) this.setData({ activeImageIndex: index })
   },
 
   selectGalleryImage(event) {
-    this.setData({ activeImageIndex: Number(event.currentTarget.dataset.index) || 0 })
+    this.onGalleryChange({ detail: { current: Number(event.currentTarget.dataset.index) } })
+  },
+
+  previewImage(event) {
+    const images = event.currentTarget.dataset.role === 'detail' ? this.data.detailImages : this.data.images
+    const image = images[Number(event.currentTarget.dataset.index)]
+    if (image && image.displayUrl) wx.previewImage({ current: image.displayUrl, urls: images.map((item) => item.displayUrl) })
+  },
+
+  openSpecSheet() {
+    if (!this.data.product || this.data.loading) return
+    this.refreshSelectionView()
+    this.setData({ specSheetVisible: true })
+  },
+
+  closeSpecSheet() {
+    if (this.data.adding) return
+    this.setData({ specSheetVisible: false })
+  },
+
+  stopSheetTouch() {},
+
+  onCartChange() { this.refreshSelectionView() },
+
+  refreshCartDock() {
+    if (typeof this.selectComponent !== 'function') return
+    const dock = this.selectComponent('#cart-dock')
+    if (dock && typeof dock.refresh === 'function') dock.refresh()
   },
 
   selectOption(event) {
@@ -214,7 +299,9 @@ Page({
   },
 
   changeQuantity(event) {
-    this.setData({ quantity: event.detail.value })
+    const value = event.detail.value
+    if (!Number.isInteger(value)) return
+    this.setData({ quantity: Math.max(1, Math.min(this.data.maxQuantity, value)) })
   },
 
   openCart() {
@@ -222,11 +309,16 @@ Page({
   },
 
   addToCart() {
-    if (!this.data.product || !this.data.canAddToCart || this.data.adding) return
+    if (!this.data.product || this.data.adding) return
+    this.refreshSelectionView()
+    if (!this.data.canAddToCart) { this.openSpecSheet(); return }
     this.setData({ adding: true })
     try {
       const cart = loadCart()
       addItem(cart, this.data.product, this.data.selections, this.data.quantity)
+      this.setData({ specSheetVisible: false })
+      this.refreshSelectionView()
+      this.refreshCartDock()
       wx.showToast({ title: '已加入购物车', icon: 'success' })
     } catch (error) {
       wx.showModal({
@@ -245,18 +337,20 @@ Page({
 
     const validation = validateSelections(product, this.data.selections)
     const sku = validation.valid ? resolveSku(product, this.data.selections) : null
-    const activeSkus = Array.isArray(product.skus)
-      ? product.skus.filter((item) => item.is_active !== false)
-      : []
+    const activeSkus = activeSkusFor(product)
     const skuResolved = Boolean(sku)
     const stockQuantity = stockFor(product, sku)
-    const available = validation.valid && skuResolved && stockQuantity > 0
-    const maxQuantity = Math.max(1, Math.min(99, stockQuantity))
+    const cartQuantity = sku ? cartQuantityForSku(loadCart(), product.product_code, sku.sku_code) : 0
+    const remainingQuantity = stockQuantity === null ? 0 : Math.max(0, stockQuantity - cartQuantity)
+    const available = validation.valid && skuResolved && remainingQuantity > 0
+    const maxQuantity = Math.max(1, Math.min(99, remainingQuantity))
     const quantity = Math.min(this.data.quantity, maxQuantity)
     let unitPrice = Number(product.base_price_cents) || 0
+    let validPrice = true
     try {
       unitPrice = calculateUnitPrice(product, this.data.selections, sku)
     } catch {
+      validPrice = false
       // Keep the server-provided base price visible while the selection is incomplete.
     }
 
@@ -264,7 +358,10 @@ Page({
     if (activeSkus.length === 0) selectionHint = '商品尚未配置可售规格。'
     else if (!validation.valid) selectionHint = validation.message
     else if (!skuResolved) selectionHint = '当前选项没有可用规格，请选择其他组合。'
-    else if (!available) selectionHint = '当前选项暂时无库存。'
+    else if (stockQuantity === null) selectionHint = '当前规格库存暂未确认。'
+    else if (stockQuantity === 0) selectionHint = '当前选项暂时无库存。'
+    else if (!available) selectionHint = '购物车中该规格的数量已达到库存上限。'
+    else if (!validPrice) selectionHint = '当前规格价格暂未确认。'
 
     this.setData({
       specifications: decoratedSpecifications(product, this.data.selections),
@@ -280,15 +377,9 @@ Page({
             : '',
       quantity,
       maxQuantity,
-      stockLabel:
-        stockQuantity >= 999
-          ? product.stock_status === 'preorder'
-            ? '可预订'
-            : '有货'
-          : stockQuantity > 0
-            ? `库存 ${stockQuantity}`
-            : '暂时售罄',
-      canAddToCart: available,
+      stockLabel: activeSkus.length === 0 ? '暂不可售' : !sku ? '请选择规格' : stockQuantity === null ? '库存暂未确认' :
+        stockQuantity > 0 ? `库存 ${stockQuantity} ${this.data.displayUnit}${cartQuantity ? ` · 购物车已选 ${cartQuantity}` : ''}` : '暂时售罄',
+      canAddToCart: available && validPrice,
     })
   },
 })

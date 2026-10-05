@@ -1,155 +1,102 @@
 <view class="product-page" aria-role="main">
   <view wx:if="{{loading}}" class="page-shell">
-    <view class="surface status-panel" aria-role="status">
-      <text class="status-panel__title">正在加载商品…</text>
-      <text class="status-panel__message">请稍候</text>
-    </view>
+    <view class="surface status-panel" aria-role="status"><text class="status-panel__title">正在加载商品…</text><text class="status-panel__message">请稍候</text></view>
   </view>
-
   <view wx:elif="{{errorMessage}}" class="page-shell">
     <view class="surface status-panel" aria-role="alert">
-      <text class="status-panel__title">商品加载失败</text>
-      <text class="status-panel__message status-panel__message--error">{{errorMessage}}</text>
+      <text class="status-panel__title">商品加载失败</text><text class="status-panel__message status-panel__message--error">{{errorMessage}}</text>
       <button class="secondary-button status-panel__action" bindtap="retry">重新加载</button>
     </view>
   </view>
-
   <block wx:elif="{{product}}">
-    <view class="gallery" aria-label="商品图片">
-      <swiper
-        class="gallery__swiper"
-        current="{{activeImageIndex}}"
-        circular="{{images.length > 1}}"
-        indicator-dots="{{images.length > 1}}"
-        bindchange="onGalleryChange"
-      >
+    <view class="gallery" aria-label="商品展示图片">
+      <swiper class="gallery__swiper" current="{{activeImageIndex}}" circular="{{images.length > 1}}" bindchange="onGalleryChange">
         <swiper-item wx:for="{{images}}" wx:key="id">
-          <image
-            class="gallery__image"
-            src="{{item.displayUrl}}"
-            mode="aspectFill"
-            aria-label="{{product.name}} 图片 {{index + 1}}"
-          />
+          <image class="gallery__image" src="{{item.displayUrl}}" mode="aspectFit" data-role="gallery" data-index="{{index}}" bindtap="previewImage" aria-label="{{item.alt_text || product.name + '展示图片'}}" />
         </swiper-item>
-        <swiper-item wx:if="{{!images.length}}">
-          <view class="gallery__placeholder" aria-label="商品暂无图片">港湾集市</view>
-        </swiper-item>
+        <swiper-item wx:if="{{!images.length}}"><view class="gallery__placeholder"><text>港湾集市</text><text class="gallery__placeholder-hint">暂无商品展示图片</text></view></swiper-item>
       </swiper>
-
+      <text wx:if="{{images.length}}" class="gallery__count" aria-label="第 {{activeImageIndex + 1}} 张，共 {{images.length}} 张图片">{{activeImageIndex + 1}} / {{images.length}}</text>
       <scroll-view wx:if="{{images.length > 1}}" class="gallery__thumbs" scroll-x="true" show-scrollbar="false">
         <view class="gallery__thumb-row">
-          <button
-            wx:for="{{images}}"
-            wx:key="id"
-            class="gallery__thumb {{activeImageIndex == index ? 'gallery__thumb--active' : ''}}"
-            data-index="{{index}}"
-            bindtap="selectGalleryImage"
-            aria-label="查看第 {{index + 1}} 张商品图片"
-          >
-            <image src="{{item.displayUrl}}" mode="aspectFill" aria-hidden="true" />
-          </button>
+          <button wx:for="{{images}}" wx:key="id" class="gallery__thumb {{activeImageIndex == index ? 'gallery__thumb--active' : ''}}" data-index="{{index}}" bindtap="selectGalleryImage" aria-label="查看第 {{index + 1}} 张展示图片"><image src="{{item.displayUrl}}" mode="aspectFill" aria-hidden="true" /></button>
         </view>
       </scroll-view>
     </view>
 
-    <view class="page-shell product-content">
+    <view class="product-content">
       <view class="surface product-summary">
-        <view class="product-summary__meta">
-          <text>{{product.category.name}}</text>
-          <text wx:if="{{product.featured}}" class="product-summary__featured">推荐</text>
+        <view class="product-summary__price-row"><text class="price product-summary__price">{{displayPrice}}</text><text class="product-summary__unit">/ {{displayUnit}}</text><text wx:if="{{marketPrice}}" class="product-summary__market-price">{{marketPrice}}</text></view>
+        <view class="product-summary__heading">
+          <view class="product-summary__title"><text class="product-summary__name">{{product.name}}</text><text wx:if="{{product.subtitle}}" class="product-summary__subtitle">{{product.subtitle}}</text></view>
+          <button class="product-favorite {{isFavorite ? 'product-favorite--active' : ''}}" bindtap="toggleFavorite" disabled="{{favoriteBusy}}" aria-label="{{isFavorite ? '取消收藏商品' : '收藏商品'}}"><text class="product-favorite__icon">{{isFavorite ? '♥' : '♡'}}</text><text>{{favoriteBusy ? '保存中' : isFavorite ? '已收藏' : '收藏'}}</text></button>
         </view>
-        <text class="page-heading product-summary__name">{{product.name}}</text>
-        <text wx:if="{{product.subtitle}}" class="product-summary__subtitle">{{product.subtitle}}</text>
-        <view class="product-summary__price-row">
-          <text class="price product-summary__price">{{displayPrice}}</text>
-          <text wx:if="{{marketPrice}}" class="product-summary__market-price">{{marketPrice}}</text>
-          <text class="product-summary__stock">{{stockLabel}}</text>
-        </view>
-        <button class="secondary-button product-favorite" bindtap="toggleFavorite" disabled="{{favoriteBusy}}" aria-label="{{isFavorite ? '取消收藏商品' : '收藏商品'}}">{{favoriteBusy ? '正在保存…' : isFavorite ? '♥ 已收藏' : '♡ 收藏商品'}}</button>
+        <view class="product-summary__meta"><text>{{product.category.name}}</text><text wx:if="{{product.featured}}" class="tag">店主推荐</text><text class="product-summary__stock">{{stockStatusLabel}} · {{stockLabel}}</text></view>
+        <view wx:if="{{product.tags.length}}" class="tag-row" aria-label="商品标签"><text wx:for="{{product.tags}}" wx:key="*this" class="tag">{{item}}</text></view>
         <text wx:if="{{favoriteError}}" class="selection-hint" aria-role="alert">{{favoriteError}}</text>
-        <view wx:if="{{product.tags.length}}" class="tag-row" aria-label="商品标签">
-          <text wx:for="{{product.tags}}" wx:key="*this" class="tag">{{item}}</text>
-        </view>
       </view>
 
-      <view wx:if="{{specifications.length}}" class="surface choice-card" aria-label="选择规格">
-        <text id="choice-title" class="section-title">选择规格</text>
-        <view wx:for="{{specifications}}" wx:key="code" class="specification">
-          <view class="specification__heading">
-            <text class="specification__name">{{item.name}}</text>
-            <text class="specification__mode">{{item.requirementLabel}} · {{item.modeLabel}}</text>
-          </view>
-          <view class="option-grid" aria-role="group" aria-label="{{item.name}}选项">
-            <button
-              wx:for="{{item.options}}"
-              wx:for-item="option"
-              wx:key="code"
-              class="option-button {{option.selected ? 'option-button--selected' : ''}}"
-              data-specification-code="{{item.code}}"
-              data-option-code="{{option.code}}"
-              bindtap="selectOption"
-              aria-label="{{option.name}}{{option.priceDeltaLabel}}{{option.selected ? '，已选择' : ''}}"
-            >
-              <text>{{option.name}}</text>
-              <text wx:if="{{option.priceDeltaLabel}}" class="option-button__price">{{option.priceDeltaLabel}}</text>
-            </button>
-          </view>
-        </view>
-        <text wx:if="{{selectionText}}" class="selection-summary">已选：{{selectionText}}</text>
+      <view class="surface choice-card">
+        <button class="selection-entry" bindtap="openSpecSheet" aria-label="打开规格和数量选择">
+          <text class="selection-entry__label">选择</text><view class="selection-entry__content"><text>{{selectionText || (selectedSku ? selectedSku.name : '请选择规格')}}</text><text class="selection-entry__quantity">数量 {{quantity}} {{displayUnit}}</text></view><text class="selection-entry__arrow" aria-hidden="true">›</text>
+        </button>
         <text wx:if="{{selectionHint}}" class="selection-hint" aria-role="alert">{{selectionHint}}</text>
-      </view>
-
-      <view class="surface quantity-card" aria-label="购买数量">
-        <view>
-          <text id="quantity-title" class="section-title">购买数量</text>
-          <text class="quantity-card__help">每次最多添加 {{maxQuantity}} 件</text>
-        </view>
-        <quantity-stepper
-          value="{{quantity}}"
-          min="{{1}}"
-          max="{{maxQuantity}}"
-          disabled="{{!canAddToCart}}"
-          bind:change="changeQuantity"
-        />
+        <button class="primary-button choice-card__add" bindtap="openSpecSheet" disabled="{{!hasAvailableSku || adding}}" aria-label="选择规格并加入购物车">{{hasAvailableSku ? '加入购物车' : '暂不可购买'}}</button>
       </view>
 
       <view wx:if="{{product.selling_points.length}}" class="surface detail-card">
-        <text class="section-title">商品亮点</text>
-        <view class="selling-points">
-          <view wx:for="{{product.selling_points}}" wx:key="*this" class="selling-point">
-            <text class="selling-point__marker" aria-hidden="true">✓</text>
-            <text>{{item}}</text>
-          </view>
+        <text class="section-title">商品亮点</text><view class="selling-points"><view wx:for="{{product.selling_points}}" wx:key="*this" class="selling-point"><text class="selling-point__marker" aria-hidden="true">✓</text><text>{{item}}</text></view></view>
+      </view>
+      <view class="surface detail-card">
+        <text class="section-title">商品信息</text>
+        <view class="attribute-row"><text class="attribute-row__label">商品编码</text><text class="attribute-row__value" user-select="true">{{product.product_code}}</text></view>
+        <view wx:if="{{product.category.name}}" class="attribute-row"><text class="attribute-row__label">商品类别</text><text class="attribute-row__value">{{product.category.name}}</text></view>
+        <view class="attribute-row"><text class="attribute-row__label">计价单位</text><text class="attribute-row__value">{{displayUnit}}</text></view>
+        <view class="attribute-row"><text class="attribute-row__label">供货状态</text><text class="attribute-row__value">{{stockStatusLabel}}</text></view>
+        <view wx:if="{{inventoryLabel}}" class="attribute-row"><text class="attribute-row__label">商品库存</text><text class="attribute-row__value">{{inventoryLabel}}</text></view>
+      </view>
+      <view wx:if="{{activeSkuRows.length}}" class="surface detail-card">
+        <text class="section-title">在售规格</text><text class="detail-help">实际价格与库存以所选规格为准。</text>
+        <view wx:for="{{activeSkuRows}}" wx:key="code" class="sku-row">
+          <view class="sku-row__heading"><text class="sku-row__name">{{item.name}}</text><view class="sku-row__prices"><text class="price">{{item.displayPrice}}</text><text wx:if="{{item.marketPrice}}" class="sku-row__market">{{item.marketPrice}}</text></view></view>
+          <text wx:if="{{item.attributesLabel}}" class="sku-row__attributes">{{item.attributesLabel}}</text><view class="sku-row__meta"><text user-select="true">规格编码 {{item.code}}</text><text class="{{item.available ? '' : 'sku-row__stock--empty'}}">{{item.stockText}}</text></view>
         </view>
       </view>
-
-      <view wx:if="{{product.description}}" class="surface detail-card">
-        <text class="section-title">商品说明</text>
-        <text class="detail-copy" user-select="true">{{product.description}}</text>
-      </view>
-
+      <view wx:if="{{product.description}}" class="surface detail-card"><text class="section-title">商品介绍</text><text class="detail-copy" user-select="true">{{product.description}}</text></view>
       <view wx:if="{{product.ingredients || product.allergen_info}}" class="surface detail-card">
-        <view wx:if="{{product.ingredients}}" class="detail-row">
-          <text class="detail-row__label">配料</text>
-          <text class="detail-copy" user-select="true">{{product.ingredients}}</text>
-        </view>
-        <view wx:if="{{product.allergen_info}}" class="detail-row">
-          <text class="detail-row__label">过敏原提示</text>
-          <text class="detail-copy" user-select="true">{{product.allergen_info}}</text>
-        </view>
+        <view wx:if="{{product.ingredients}}" class="detail-row"><text class="section-title">配料</text><text class="detail-copy" user-select="true">{{product.ingredients}}</text></view>
+        <view wx:if="{{product.allergen_info}}" class="detail-row"><text class="section-title">过敏原提示</text><text class="detail-copy" user-select="true">{{product.allergen_info}}</text></view>
+      </view>
+      <view wx:if="{{detailImages.length}}" class="surface image-detail-card">
+        <text class="section-title image-detail-card__title">图文详情</text>
+        <image wx:for="{{detailImages}}" wx:key="id" class="detail-image" src="{{item.displayUrl}}" mode="widthFix" data-role="detail" data-index="{{index}}" bindtap="previewImage" aria-label="{{item.alt_text || product.name + '图文详情'}}" />
       </view>
     </view>
 
-    <view class="product-actions" aria-role="group" aria-label="商品操作">
-      <button class="secondary-button product-actions__cart" bindtap="openCart" aria-label="查看购物车">
-        购物车
-      </button>
-      <button
-        class="primary-button product-actions__add"
-        disabled="{{!canAddToCart || adding}}"
-        bindtap="addToCart"
-        aria-label="{{canAddToCart ? '加入购物车' : selectionHint || '商品暂不可购买'}}"
-      >{{adding ? '正在添加…' : canAddToCart ? '加入购物车' : '暂不可购买'}}</button>
+    <cart-dock id="cart-dock" bindchange="onCartChange" />
+
+    <view wx:if="{{specSheetVisible}}" class="spec-overlay">
+      <view class="spec-overlay__mask" bindtap="closeSpecSheet" catchtouchmove="stopSheetTouch" aria-label="关闭规格选择" />
+      <view class="spec-sheet" aria-role="dialog" aria-label="选择商品规格和数量" aria-modal="true">
+        <view class="spec-sheet__header">
+          <image wx:if="{{coverImageUrl}}" class="spec-sheet__cover" src="{{coverImageUrl}}" mode="aspectFit" aria-label="{{product.name}}" /><view wx:else class="spec-sheet__cover spec-sheet__cover--empty">暂无图片</view>
+          <view class="spec-sheet__summary"><text class="spec-sheet__name">{{product.name}}</text><view><text class="price spec-sheet__price">{{displayPrice}}</text><text class="product-summary__unit">/ {{displayUnit}}</text></view><text class="spec-sheet__stock">{{stockLabel}}</text></view>
+          <button class="spec-sheet__close" bindtap="closeSpecSheet" disabled="{{adding}}" aria-label="关闭规格选择">×</button>
+        </view>
+        <scroll-view class="spec-sheet__body" scroll-y="true" show-scrollbar="false">
+          <view wx:for="{{specifications}}" wx:key="code" class="specification">
+            <view class="specification__heading"><text class="specification__name">{{item.name}}</text><text class="specification__mode">{{item.requirementLabel}} · {{item.modeLabel}}</text></view>
+            <view class="option-grid" aria-role="group" aria-label="{{item.name}}选项">
+              <button wx:for="{{item.options}}" wx:for-item="option" wx:key="code" class="option-button {{option.selected ? 'option-button--selected' : ''}}" data-specification-code="{{item.code}}" data-option-code="{{option.code}}" bindtap="selectOption" aria-label="{{option.name}}{{option.priceDeltaLabel}}{{option.selected ? '，已选择' : ''}}"><text>{{option.name}}</text><text wx:if="{{option.priceDeltaLabel}}" class="option-button__price">{{option.priceDeltaLabel}}</text></button>
+            </view>
+          </view>
+          <view wx:if="{{!specifications.length && selectedSku}}" class="specification"><text class="specification__name">规格</text><text class="selection-summary">{{selectedSku.name}}</text></view>
+          <text wx:if="{{selectionText}}" class="selection-summary">已选：{{selectionText}}</text><text wx:if="{{selectedSku}}" class="spec-sheet__sku-code">规格编码 {{selectedSku.sku_code}}</text>
+          <text wx:if="{{selectionHint}}" class="selection-hint" aria-role="alert">{{selectionHint}}</text>
+          <view class="quantity-card"><view><text class="section-title">购买数量</text><text class="detail-help">每次最多添加 {{maxQuantity}} {{displayUnit}}</text></view><quantity-stepper value="{{quantity}}" min="{{1}}" max="{{maxQuantity}}" disabled="{{!canAddToCart || adding}}" bind:change="changeQuantity" /></view>
+        </scroll-view>
+        <view class="spec-sheet__footer"><button class="primary-button" bindtap="addToCart" disabled="{{!canAddToCart || adding}}" aria-label="确认所选规格并加入购物车">{{adding ? '正在添加…' : '确定 · 加入购物车'}}</button></view>
+      </view>
     </view>
   </block>
 </view>
