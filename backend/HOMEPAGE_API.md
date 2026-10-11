@@ -14,6 +14,8 @@ ISO8601。分页参数 `page=1`、`page_size=20`，每页最多100条，列表�
   `categories` 为 `[{id,code,name,image_url}]`；
   `hot_products` 为 `[{product:ProductRead,sold_quantity,order_count,repeat_purchase_count}]`。
   `hot_products_source` 为 `sales`、`featured` 或 `newest`，推荐来源如实返回。
+- `GET /shop/coupons?page=1&page_size=20` 返回与首页相同字段的优惠券数组。
+  只含启用且当前可领取的活动，按优惠金额降序、ID升序分页；可翻页查看首页20条以外的活动。
 - `GET /shop/hot-searches?limit=10` 返回 `[{product:ProductRead,search_hit_count}]`。
   只返回命中数大于0、分类启用且已发布的商品。
 - `POST /shop/search`，JSON `{q,page:1,page_size:10}`，返回现有
@@ -36,17 +38,63 @@ ISO8601。分页参数 `page=1`、`page_size=20`，每页最多100条，列表�
   `[{coupon_id,title,min_spend_cents,discount_cents,starts_at,expires_at,is_active,claimed_at}]`。
   只返回当前客户实际领取过的优惠券，保留过期或停用活动的领取记录，`claimed_at` 均非空。
   按领取时间降序、领取记录ID降序分页，默认20条，每页最多100条。
-  当前可领取的活动由公开 `GET /shop/home` 提供，此接口不会把未领取的活动当作“我的优惠券”。
+  当前可领取的活动由公开 `GET /shop/coupons` 提供，首页展示前20条；
+  此接口不会把未领取的活动当作“我的优惠券”。
 - `POST /mini/shop/coupons/{id}/claim` → 上述单条已领取记录；重复领取返回同一记录。
   活动过期或停用后，已有领取记录的重试仍返回原领取时间，
   新领取则返回404。
 - `GET /mini/shop/orders` → 当前客户的历史订单数组。
+- `POST /mini/shop/cart/quote` → 只读购物车报价，约定见下方。
 - 商家专用 `GET|PATCH /mini/shop/store` → 公开 `store` 字段；PATCH只接受
   `name,phone,address,latitude,longitude`。
 - 商家专用 `POST /mini/shop/store/announcement`，multipart `file` → 更新后的 `store`。
 
 商家身份由后台把真实的小程序客户ID绑定到唯一店铺；小程序不能自行指定店主或修改所有者。
-优惠券只管理展示和领取，本阶段不执行核销或结算。
+优惠券支持展示、领取和报价时的满减计算，本阶段不执行核销或实际结算。
+
+## 购物车报价（Authorization: Bearer）
+
+`POST /mini/shop/cart/quote` 只提交已勾选的商品行：
+
+```json
+{
+  "items": [
+    {
+      "product_code": "COFFEE",
+      "sku_code": "COFFEE-LARGE",
+      "selections": {"cup": ["large"], "addons": ["milk"]},
+      "quantity": 2
+    }
+  ],
+  "coupon_id": null
+}
+```
+
+`items` 可为空，最多100行；每行数量为1至99的整数。规格最多20组，每组选项最多50个，
+规格/选项代码最多64字符，商品代码最多64字符，SKU代码最多80字符。
+未知字段、重复选项、未知规格或选项、缺失必选项、数量或规格越界均拒绝；不接受客户端金额或客户ID。
+`selections` 省略时为空，不会自动补选默认选项。
+
+返回 `data={items,subtotal_cents,discount_cents,total_cents,coupon_id,coupon_evaluations}`。
+每行字段为 `{product_code,sku_code,name,sku_name,selections,quantity,unit_price_cents,line_total_cents}`，
+保持请求行顺序。服务器读取已发布且分类启用的商品及当前启用SKU，校验当前规格和库存。
+SKU匹配与小程序目录一致：按默认SKU优先、排序号、ID选择首个规格匹配的SKU，并核对提交的SKU代码。
+SKU变体价格是绝对价，不再次叠加对应规格的价差；独立加料叠加价差后单价最低为0。
+同一SKU的不同定制行合并数量检查SKU库存；`out_of_stock` 商品不可报价，预售也受SKU库存限制。
+各行和总额使用整数分，最高为2147483647分。
+
+`coupon_evaluations` 每条为
+`{coupon_id,title,min_spend_cents,discount_cents,eligible,shortfall_cents,reason}`。
+只检查当前客户实际领取的券，包括过期/停用历史；最多返回按领取时间、领取ID降序的100条。
+明确选择更早领取的券时，用该券替换最后一条，保持上限并确保选择结果可见。
+`shortfall_cents=max(0,min_spend_cents-subtotal_cents)`；
+`reason` 为 `eligible`、`below_minimum`、`inactive`、`not_started` 或 `expired`。
+有效期包含开始时刻，不包含结束时刻。省略或传空 `coupon_id` 时不自动应用优惠券；
+明确选择的券必须已领取、启用、在有效期内且达到门槛，否则返回中文422错误。
+可用时 `total_cents=subtotal_cents-discount_cents`，只应用所选的一张券。
+
+报价请求不写数据库、不创建订单、不预留或扣减库存、不核销优惠券、不调用支付。
+返回值是当前价格和可用性快照；后续实际下单必须重新校验。成功及错误响应均为 `private, no-store`。
 
 ## 浏览器后台（管理员Cookie）
 

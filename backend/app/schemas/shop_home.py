@@ -51,6 +51,10 @@ class HomeCoupon(BaseModel):
     expires_at: datetime
 
 
+class PublicCouponListResponse(BaseModel):
+    data: list[HomeCoupon]
+
+
 class HotProduct(BaseModel):
     product: ProductRead
     sold_quantity: int

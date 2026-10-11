@@ -11,6 +11,7 @@ from app.api.dependencies import (
     require_same_origin_for_unsafe_request,
 )
 from app.api.routes.mini_auth import MiniAuthentication
+from app.schemas.shop_cart import CartQuoteRequest, CartQuoteResponse
 from app.schemas.shop_commerce import (
     MAX_AMOUNT_CENTS,
     AdminCouponListResponse,
@@ -28,6 +29,7 @@ from app.schemas.shop_commerce import (
     OrderResponse,
 )
 from app.services.catalog import CatalogService
+from app.services.shop_cart import quote_cart
 from app.services.shop_commerce import (
     ShopCommerceService,
     serialize_admin_coupon,
@@ -51,6 +53,18 @@ ProductCode = Annotated[str, Path(min_length=1, max_length=64)]
 def _private(response: Response) -> None:
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["Vary"] = "Authorization"
+
+
+@mini_router.post("/cart/quote", response_model=CartQuoteResponse)
+def cart_quote(
+    payload: CartQuoteRequest,
+    identity: MiniAuthentication,
+    session: DbSession,
+    response: Response,
+) -> CartQuoteResponse:
+    """只读报价：重新校验当前商品、库存和已领取优惠券，不创建或支付订单。"""
+    _private(response)
+    return CartQuoteResponse(data=quote_cart(session, identity[0].id, payload))
 
 
 @mini_router.get("/favorites", response_model=FavoriteListResponse)

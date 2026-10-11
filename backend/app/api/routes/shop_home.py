@@ -18,6 +18,7 @@ from app.models import MiniCustomer
 from app.schemas.catalog import ProductListResponse
 from app.schemas.shop_home import (
     HotSearchResponse,
+    PublicCouponListResponse,
     ShopCustomerListResponse,
     ShopCustomerRead,
     ShopHomeResponse,
@@ -57,6 +58,17 @@ admin_router = APIRouter(
 @router.get("/home", response_model=ShopHomeResponse)
 def home(session: DbSession) -> ShopHomeResponse:
     return ShopHomeResponse(data=shop_home.home(session))
+
+
+@router.get("/coupons", response_model=PublicCouponListResponse)
+def public_coupons(
+    session: DbSession,
+    page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> PublicCouponListResponse:
+    return PublicCouponListResponse(
+        data=shop_home.public_coupons(session, page=page, page_size=page_size)
+    )
 
 
 @router.get("/hot-searches", response_model=HotSearchResponse)

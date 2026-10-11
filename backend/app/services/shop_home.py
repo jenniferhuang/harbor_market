@@ -19,10 +19,31 @@ from app.schemas.shop_home import (
 )
 from app.schemas.shop_store import StoreRead
 from app.services.catalog import CatalogService, product_search_condition
-from app.services.shop_commerce import as_utc
+from app.services.shop_commerce import active_coupon_condition, as_utc
 from app.services.shop_store import public_store
 
 catalog = CatalogService()
+
+
+def public_coupons(session: Session, *, page: int, page_size: int) -> list[HomeCoupon]:
+    coupons = session.scalars(
+        select(ShopCoupon)
+        .where(active_coupon_condition(datetime.now(UTC)))
+        .order_by(ShopCoupon.discount_cents.desc(), ShopCoupon.id)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    return [
+        HomeCoupon(
+            id=coupon.id,
+            title=coupon.title,
+            min_spend_cents=coupon.min_spend_cents,
+            discount_cents=coupon.discount_cents,
+            starts_at=as_utc(coupon.starts_at),
+            expires_at=as_utc(coupon.expires_at),
+        )
+        for coupon in coupons
+    ]
 
 
 def _public_products() -> Select[tuple[Product]]:
@@ -175,7 +196,6 @@ def hot_products(
 
 
 def home(session: Session) -> ShopHomeData:
-    now = datetime.now(UTC)
     carousel = list(
         session.scalars(
             select(ShopMedia)
@@ -196,16 +216,6 @@ def home(session: Session) -> ShopHomeData:
         .where(Category.is_active.is_(True))
         .order_by(Category.sort_order, Category.name, Category.id)
         .limit(100)
-    )
-    coupons = session.scalars(
-        select(ShopCoupon)
-        .where(
-            ShopCoupon.is_active.is_(True),
-            ShopCoupon.starts_at <= now,
-            ShopCoupon.expires_at > now,
-        )
-        .order_by(ShopCoupon.discount_cents.desc(), ShopCoupon.id)
-        .limit(20)
     )
     products, source = hot_products(session)
     return ShopHomeData(
@@ -230,17 +240,7 @@ def home(session: Session) -> ShopHomeData:
             )
             for category in categories
         ],
-        coupons=[
-            HomeCoupon(
-                id=coupon.id,
-                title=coupon.title,
-                min_spend_cents=coupon.min_spend_cents,
-                discount_cents=coupon.discount_cents,
-                starts_at=as_utc(coupon.starts_at),
-                expires_at=as_utc(coupon.expires_at),
-            )
-            for coupon in coupons
-        ],
+        coupons=public_coupons(session, page=1, page_size=20),
         hot_products=products,
         hot_products_source=source,
     )
