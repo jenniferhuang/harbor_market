@@ -51,6 +51,15 @@
 .store-card__action { width: 0; flex: 1; margin: 0; border: 1rpx solid #d3e2d9; border-radius: 14rpx; padding: 14rpx 10rpx; background: #f7faf7; color: #325f4c; font-size: 25rpx; line-height: 1.5; }
 .store-card__action-detail { display: block; margin-top: 4rpx; color: #789081; font-size: 21rpx; }
 .store-card__action[disabled] { color: #a2afa6; }
+
+.home-page button.home-account,
+.home-page button.promotion-placeholder__button,
+.home-page button.section-heading__link,
+.home-page button.inline-error__retry { width: auto; }
+.home-page button.search-entry,
+.home-page button.store-card__action { width: 0; }
+.home-page button.coupon-card__claim { width: 116rpx; }
+.home-page button.category-item { width: 100%; }
 .store-announcement { display: block; width: 100%; overflow: hidden; border-radius: 16rpx; }
 .store-announcement-empty { border-radius: 16rpx; padding: 30rpx 24rpx; background: #f6f8f4; color: #8a988d; font-size: 24rpx; text-align: center; }
 .product-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20rpx; }

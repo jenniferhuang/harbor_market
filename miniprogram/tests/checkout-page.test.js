@@ -23,12 +23,16 @@ function setup(config = {}) {
   vi.resetModules()
   for (const key of Object.keys(require.cache)) if (key.startsWith(ROOT)) delete require.cache[key]
   const storage = new Map([['harbor_market_api_base_url', ORIGIN]])
+  let logins = 0
   global.wx = { getStorageSync: vi.fn((key) => storage.get(key)), setStorageSync: vi.fn((key, value) => storage.set(key, value)),
     removeStorageSync: vi.fn((key) => storage.delete(key)), navigateTo: vi.fn(), switchTab: vi.fn(),
     login: vi.fn((options) => options.success({ code: 'wx-valid-code' })),
     request: vi.fn((options) => {
-      if (options.url.endsWith('/auth/login')) reply(options, { token_type: 'Bearer', access_token: 'valid-customer-token-abcdefghijklmnop',
-        expires_at: new Date(Date.now() + 300_000).toISOString(), customer: { id: 9, nickname: '海港', avatar_url: '' } })
+      if (options.url.endsWith('/auth/login')) {
+        logins += 1
+        reply(options, { token_type: 'Bearer', access_token: `valid-customer-token-abcdefghijklmnop-${logins}`,
+          expires_at: new Date(Date.now() + 300_000).toISOString(), customer: { id: 9, nickname: '海港', avatar_url: '' } })
+      }
       else if (options.url.endsWith('/auth/logout')) reply(options, null)
       else if (options.url.endsWith('/cart/quote')) {
         if (config.intercept && config.intercept(options)) return
@@ -59,6 +63,33 @@ describe('selected cart order confirmation', () => {
     test.page.backToCart()
     expect(test.api.switchTab).toHaveBeenCalledWith({ url: '/pages/cart/cart' })
     expect(test.cart.loadCart().items).toHaveLength(1)
+  })
+  it('requests one quote when a guest login finishes and emits the dialog success event', async () => {
+    const test = setup()
+    test.cart.addItem(test.cart.loadCart(), product(), {}, 2)
+    test.mount()
+    test.page.login()
+    await test.auth.loginWithWeChat()
+    test.page.loginSucceeded()
+    await vi.waitFor(() => expect(test.page.data.quote).not.toBeNull())
+    expect(test.requests()).toHaveLength(1)
+    expect(test.page.data).toMatchObject({ loggedIn: true, loginVisible: false })
+    expect(test.cart.loadCart().items).toHaveLength(1)
+  })
+  it('clears and refreshes a completed quote when the same customer receives a new session token', async () => {
+    let pending
+    let pause = false
+    const test = setup({ intercept(options) { if (pause) { pending = options; return true } } })
+    await test.auth.loginWithWeChat()
+    test.cart.addItem(test.cart.loadCart(), product(), {}, 2)
+    test.mount()
+    await vi.waitFor(() => expect(test.page.data.quote).not.toBeNull())
+    pause = true
+    await test.auth.loginWithWeChat()
+    expect(test.page.data).toMatchObject({ quote: null, coupons: [], items: [], loading: true })
+    expect(test.requests()).toHaveLength(2)
+    reply(pending, quote(pending.data, 400))
+    await vi.waitFor(() => expect(test.page.data.quote?.total_cents).toBe(800))
   })
   it('quotes only checked lines using current server prices and no submitted amount', async () => {
     const test = setup({ unitPrice: 400 })

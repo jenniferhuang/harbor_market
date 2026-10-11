@@ -28,3 +28,9 @@
 .pagination__button { width: auto; min-width: 150rpx; min-height: 76rpx; margin: 0; padding: 15rpx 24rpx; font-size: 26rpx; }
 .pagination__button[disabled] { border-color: #dfe6e3; color: #a4b1ad; }
 .pagination__label { min-width: 156rpx; color: #5e716c; font-size: 25rpx; text-align: center; }
+
+.search-page button.search-bar__clear,
+.search-page button.search-bar__submit,
+.search-page button.inline-error__retry,
+.search-page button.pagination__button { width: auto; }
+.search-page button.hot-search-item { width: 100%; }

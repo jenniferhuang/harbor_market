@@ -90,7 +90,11 @@ MINIO_DATA_DIR="$task_main_root/.data/local-preview/minio" \
 
 修改微信凭证后也从主目录执行上述命令，使新增 Compose 配置传入后端。
 为避免切换工作树时误用新的空目录，MinIO 路径明确指向原始绝对目录。
-当前 `.env` 使用 `WECHAT_MINIPROGRAM_AUTH_MODE=disabled`，AppSecret 留空，待填写真实凭证后切换到 `live`。
+2026-10-11 已将私有 `.env` 中新提供的 AppID/AppSecret 配置到正式变量，并切换到
+`WECHAT_MINIPROGRAM_AUTH_MODE=live`。后端与清理任务容器已重新创建，运行时凭证与 `.env` 一致。
+开发者工具使用同一 AppID；AppSecret 仍只保存在后端配置中。
+微信官方凭证检查已通过，模拟器完整登录仍待确认。完整结果见
+[2026-10-11 微信配置与全量测试](WECHAT_LOGIN_VALIDATION_20261011.md)。
 
 2026-10-04 已部署本地预览并应用迁移 0005。健康检查、已发布商品及其 PNG 图片、未登录客户接口的
 401 响应和关闭真实登录时的 503 响应均通过检查。85 项小程序测试、48 项网页测试和 420 项后端隔离测试通过。

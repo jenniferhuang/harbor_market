@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "个人资料",
+  "usingComponents": {
+    "login-dialog": "/components/login-dialog/login-dialog"
+  }
+}

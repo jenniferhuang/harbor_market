@@ -38,3 +38,5 @@
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
+
+.stepper button.stepper__button { width: 68rpx; }

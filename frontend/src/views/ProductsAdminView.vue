@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Store,
   Tags,
   Trash2,
   Upload,
@@ -1026,6 +1027,10 @@ onMounted(async () => {
             class="text-link"
             :to="{ name: 'admin-shop' }"
           >
+            <Store
+              :size="16"
+              aria-hidden="true"
+            />
             商家与首页管理
           </RouterLink>
           <button
@@ -1656,7 +1661,7 @@ onMounted(async () => {
                 <td>{{ product.category?.name ?? categoryById.get(product.category_id)?.name ?? '—' }}</td>
                 <td><span :class="['status-chip', `status-chip--${product.status}`]">{{ productStatusLabel(product.status) }}</span></td>
                 <td>¥{{ centsToYuan(product.base_price_cents) }}</td>
-                <td>{{ stockStatusLabel(product.stock_status) }} · {{ product.inventory_count ?? '不限' }}</td>
+                <td>{{ stockStatusLabel(product.stock_status) }} · {{ product.inventory_count ?? '未录入' }}</td>
                 <td class="table-actions">
                   <button
                     class="table-icon-button"

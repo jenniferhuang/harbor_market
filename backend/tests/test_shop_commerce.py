@@ -14,9 +14,13 @@ from app.models import (
     MiniFavorite,
     Product,
     ProductSku,
+    ShopCoupon,
     ShopOrder,
     ShopOrderLine,
+    ShopProfile,
+    User,
 )
+from app.services import shop_commerce
 from app.wechat.auth import WechatIdentity
 
 MINI = "/api/v1/mini/shop"
@@ -127,6 +131,150 @@ def _assert_chinese_error(response: Any, expected_status: int) -> None:
     assert any(
         "\u4e00" <= character <= "\u9fff" for character in response.json()["error"]["message"]
     )
+
+
+def test_account_counts_are_private_and_empty_reads_do_not_create_store(
+    client: TestClient,
+    commerce_customers: list[dict[str, Any]],
+    app: FastAPI,
+) -> None:
+    response = client.get(f"{MINI}/me", headers=_bearer(commerce_customers[0]))
+    assert response.status_code == 200
+    assert response.json() == {
+        "data": {
+            "can_manage_store": False,
+            "favorites_count": 0,
+            "available_coupon_count": 0,
+            "order_count": 0,
+        }
+    }
+    assert response.headers["cache-control"] == "private, no-store"
+    assert "Authorization" in response.headers["vary"]
+    with app.state.session_factory() as session:
+        assert session.get(ShopProfile, 1) is None
+        for model in (MiniFavorite, MiniCouponClaim, ShopOrder):
+            assert session.scalar(select(func.count()).select_from(model)) == 0
+
+
+def test_account_favorite_count_matches_visible_products_and_customer_scope(
+    client: TestClient,
+    commerce_customers: list[dict[str, Any]],
+    commerce_products: dict[str, int],
+    app: FastAPI,
+) -> None:
+    first, second = commerce_customers
+    with app.state.session_factory() as session:
+        for code in ("PUBLIC-1", "DRAFT-1", "ARCHIVED-1", "HIDDEN-1"):
+            session.add(
+                MiniFavorite(
+                    customer_id=first["customer"]["id"], product_id=commerce_products[code]
+                )
+            )
+        session.add(
+            MiniFavorite(
+                customer_id=second["customer"]["id"], product_id=commerce_products["PUBLIC-2"]
+            )
+        )
+        session.commit()
+    for customer in (first, second):
+        headers = _bearer(customer)
+        summary = client.get(f"{MINI}/me", headers=headers).json()["data"]
+        favorites = client.get(f"{MINI}/favorites", headers=headers).json()["data"]
+        assert summary["favorites_count"] == len(favorites) == 1
+    with app.state.session_factory() as session:
+        product = session.get(Product, commerce_products["PUBLIC-1"])
+        assert product is not None
+        product.status = "draft"
+        session.commit()
+    assert client.get(f"{MINI}/me", headers=_bearer(first)).json()["data"]["favorites_count"] == 0
+    assert client.get(f"{MINI}/me", headers=_bearer(second)).json()["data"]["favorites_count"] == 1
+
+
+def test_account_available_coupon_count_requires_owned_active_current_coupon(
+    client: TestClient,
+    commerce_customers: list[dict[str, Any]],
+    app: FastAPI,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 10, 1, 0, 0, tzinfo=UTC)
+
+    class FixedClock:
+        @staticmethod
+        def now(_timezone: Any) -> datetime:
+            return now
+
+    monkeypatch.setattr(shop_commerce, "datetime", FixedClock)
+    first, second = commerce_customers
+    first_id, second_id = first["customer"]["id"], second["customer"]["id"]
+    day = timedelta(days=1)
+    with app.state.session_factory() as session:
+        for title, starts, expires, active, customer_id in (
+            ("有效", now - day, now + day, True, first_id),
+            ("刚开始", now, now + day, True, first_id),
+            ("尚未开始", now + day, now + day * 2, True, first_id),
+            ("恰好到期", now - day, now, True, first_id),
+            ("已过期", now - day * 2, now - day, True, first_id),
+            ("已停用", now - day, now + day, False, first_id),
+            ("其他用户", now - day, now + day, True, second_id),
+            ("未领取", now - day, now + day, True, None),
+        ):
+            coupon = ShopCoupon(
+                title=title,
+                starts_at=starts,
+                expires_at=expires,
+                is_active=active,
+                min_spend_cents=5000,
+                discount_cents=1000,
+            )
+            session.add(coupon)
+            session.flush()
+            if customer_id is not None:
+                session.add(MiniCouponClaim(customer_id=customer_id, coupon_id=coupon.id))
+        session.commit()
+    for customer, expected in ((first, 2), (second, 1)):
+        response = client.get(f"{MINI}/me", headers=_bearer(customer))
+        assert response.status_code == 200
+        assert response.json()["data"]["available_coupon_count"] == expected
+
+
+def test_account_order_count_includes_all_own_records_beyond_first_page(
+    admin_client: TestClient,
+    commerce_customers: list[dict[str, Any]],
+    app: FastAPI,
+) -> None:
+    first, second = commerce_customers
+    now = datetime.now(UTC)
+    with app.state.session_factory() as session:
+        admin_id = session.scalar(select(User.id).where(User.username == "catalog-admin"))
+        assert admin_id is not None
+        customer_ids = [first["customer"]["id"]] * 25 + [second["customer"]["id"], None]
+        for index, customer_id in enumerate(customer_ids):
+            session.add(
+                ShopOrder(
+                    external_reference=f"account-count-{index}",
+                    customer_id=customer_id,
+                    status="voided" if index == 0 else "completed",
+                    total_amount_cents=0,
+                    completed_at=now,
+                    voided_at=now if index == 0 else None,
+                    recorded_by_user_id=admin_id,
+                )
+            )
+        session.commit()
+    for customer, expected in ((first, 25), (second, 1)):
+        headers = _bearer(customer)
+        summary = admin_client.get(f"{MINI}/me", headers=headers).json()["data"]
+        assert summary["order_count"] == expected
+    first_page = admin_client.get(f"{MINI}/orders", headers=_bearer(first)).json()["data"]
+    assert len(first_page) == 20
+
+
+def test_account_counts_reject_logged_out_mini_session(
+    client: TestClient, commerce_customers: list[dict[str, Any]]
+) -> None:
+    headers = _bearer(commerce_customers[0])
+    assert client.post("/api/v1/mini/auth/logout", headers=headers).status_code == 200
+    _assert_chinese_error(client.get(f"{MINI}/me", headers=headers), 401)
 
 
 def test_favorites_are_idempotent_private_and_customer_scoped(
@@ -577,6 +725,7 @@ def test_mini_commerce_does_not_accept_browser_admin_without_bearer(
     admin_client: TestClient,
 ) -> None:
     for method, path in (
+        ("GET", "me"),
         ("GET", "favorites"),
         ("PUT", "favorites/PUBLIC-1"),
         ("DELETE", "favorites/PUBLIC-1"),

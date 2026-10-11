@@ -31,12 +31,15 @@ button::after {
   border: 0;
 }
 
-.login-dialog__close {
+.login-dialog button.login-dialog__close {
   position: absolute;
   top: 14rpx;
   right: 12rpx;
   width: 68rpx;
+  min-width: 68rpx;
+  max-width: 68rpx;
   height: 68rpx;
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
   border-radius: 50%;
@@ -67,10 +70,14 @@ button::after {
   font-size: 24rpx;
 }
 
-.avatar-picker {
+.login-dialog button.avatar-picker {
   position: relative;
+  display: block;
   width: 148rpx;
+  min-width: 148rpx;
+  max-width: 148rpx;
   height: 148rpx;
+  box-sizing: border-box;
   margin: 32rpx auto 0;
   overflow: visible;
   border-radius: 50%;
@@ -227,3 +234,6 @@ button::after {
   font-size: 24rpx;
   line-height: 1.5;
 }
+
+.login-dialog button.login-dialog__submit,
+.login-dialog button.login-dialog__later { width: 100%; }

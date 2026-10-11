@@ -388,7 +388,8 @@ onMounted(loadAll)
             <LogOut
               :size="17"
               aria-hidden="true"
-            /> 退出登录
+            />
+            <span>退出登录</span>
           </button>
         </nav>
       </div>

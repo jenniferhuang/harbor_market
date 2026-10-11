@@ -82,3 +82,12 @@
 
 .product-coupon-entry { display: flex; justify-content: space-between; gap: 20rpx; margin: 20rpx 0 0; padding: 24rpx 28rpx; background: #edf7f1; color: #0f6b5f; border-radius: 20rpx; font-size: 26rpx; line-height: 1.5; }
 .product-coupon-entry::after { border: 0; }
+
+.product-page button.gallery__thumb { width: 88rpx; }
+.product-page button.product-favorite,
+.spec-sheet button.option-button { width: auto; }
+.product-page button.product-coupon-entry,
+.product-page button.selection-entry,
+.product-page button.choice-card__add,
+.spec-sheet__footer button.primary-button { width: 100%; }
+.spec-sheet button.spec-sheet__close { width: 64rpx; }

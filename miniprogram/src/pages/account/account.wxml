@@ -1,7 +1,5 @@
 <view class="page-shell account-page" aria-role="main">
-  <text class="account-eyebrow">港湾集市</text>
-  <text class="page-heading">我</text>
-  <text class="page-intro">每一份好物，都为你用心准备。</text>
+  <view class="account-heading"><view><text class="account-eyebrow">个人中心</text><text class="page-heading">我的</text></view><button class="account-settings" bindtap="openSettings" aria-label="打开个人资料与设置">设置</button></view>
 
   <view class="surface profile-card">
     <button
@@ -23,16 +21,31 @@
 
   <view wx:if="{{errorMessage}}" class="account-message" aria-role="alert">{{errorMessage}}</view>
 
-  <view class="surface account-actions">
-    <button class="account-row" bindtap="openCoupons"><text>我的优惠券</text><text class="account-row__arrow" aria-hidden="true">›</text></button>
-    <button class="account-row" bindtap="openFavorites"><text>我的收藏</text><text class="account-row__arrow" aria-hidden="true">›</text></button>
-    <button class="account-row" bindtap="openOrders"><text>购买记录</text><text class="account-row__arrow" aria-hidden="true">›</text></button>
-    <button class="account-row" bindtap="continueShopping"><text>继续选购</text><text class="account-row__arrow" aria-hidden="true">›</text></button>
-    <button wx:if="{{canManageStore}}" class="account-row" bindtap="openMerchant"><text>商家信息与公告</text><text class="account-row__arrow" aria-hidden="true">›</text></button>
-    <button class="account-row" bindtap="openSettings"><text>连接设置</text><text class="account-row__arrow" aria-hidden="true">›</text></button>
+  <view class="surface account-stats" aria-label="我的账户概览">
+    <button class="account-stat" bindtap="openFavorites"><text class="account-stat__value">{{favoritesCount}}</text><text class="account-stat__label">我的收藏</text></button>
+    <button class="account-stat" bindtap="openHistory"><text class="account-stat__value">{{historyCount}}</text><text class="account-stat__label">我的足迹</text></button>
+    <button class="account-stat" bindtap="openCoupons"><text class="account-stat__value">{{availableCouponCount}}</text><text class="account-stat__label">可用优惠券</text></button>
   </view>
+  <text wx:if="{{summaryLoading}}" class="summary-note" aria-role="status">正在更新账户数据…</text>
+  <button wx:if="{{summaryError}}" class="summary-retry" bindtap="loadShopAccess">{{summaryError}}</button>
 
-  <text class="account-note">购物车保存在当前设备，登录或退出不会清空其中的商品。</text>
+  <button class="surface account-orders" bindtap="openOrders">
+    <view class="account-orders__heading"><text>购买记录</text><text class="account-orders__more">查看全部 ›</text></view>
+    <view class="account-orders__body"><view class="account-orders__icon" aria-hidden="true">单</view><view><text class="account-orders__title">{{authStatus == 'authenticated' ? (orderCount == '—' ? '你的购买记录' : '共 ' + orderCount + ' 笔购买记录') : '登录后查看购买记录'}}</text><text class="account-orders__hint">已关联账户的成交记录，都在这里。</text></view></view>
+  </button>
+
+  <view class="surface account-menu">
+    <text class="account-section-title">常用服务</text>
+    <view class="account-menu__grid">
+      <button class="account-menu__item" bindtap="openCouponCenter"><text class="account-menu__icon" aria-hidden="true">券</text><text>领券中心</text></button>
+      <button class="account-menu__item" bindtap="openSettings"><text class="account-menu__icon" aria-hidden="true">我</text><text>个人资料</text></button>
+      <button class="account-menu__item" bindtap="continueShopping"><text class="account-menu__icon" aria-hidden="true">逛</text><text>商品分类</text></button>
+      <button class="account-menu__item" bindtap="openHistory"><text class="account-menu__icon" aria-hidden="true">迹</text><text>浏览足迹</text></button>
+    </view>
+  </view>
+  <view wx:if="{{canManageStore}}" class="surface account-actions"><button class="account-row" bindtap="openMerchant"><text>商家信息与公告</text><text class="account-row__arrow" aria-hidden="true">›</text></button></view>
+
+  <text class="account-note">足迹与购物车保存在本机；收藏和优惠券随微信账户保存。</text>
   <button wx:if="{{authStatus == 'authenticated'}}" class="secondary-button logout-button" disabled="{{authBusy}}" bindtap="confirmLogout">退出登录</button>
 </view>
 

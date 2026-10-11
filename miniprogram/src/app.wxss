@@ -22,6 +22,7 @@ button::after {
 }
 
 .page-heading {
+  display: block;
   margin: 0;
   color: #112f2a;
   font-size: 48rpx;
@@ -30,6 +31,7 @@ button::after {
 }
 
 .page-intro {
+  display: block;
   margin: 12rpx 0 0;
   color: #60716d;
   font-size: 27rpx;
@@ -110,6 +112,8 @@ button::after {
   align-items: center;
   padding: 14rpx 30rpx;
 }
+
+.status-panel button.status-panel__action { width: auto; }
 
 .price {
   color: #b84f1d;

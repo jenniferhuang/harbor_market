@@ -12,6 +12,8 @@
     <view class="coupon-entry__body">
       <text class="coupon-entry__title">领好券，享优惠</text>
       <text class="coupon-entry__hint">{{couponHint}}</text>
+      <text wx:if="{{nextCouponHint}}" class="coupon-entry__next">{{nextCouponHint}}</text>
+      <button wx:if="{{couponTopUpVisible}}" class="coupon-entry__topup" bindtap="continueShopping" aria-label="去选购商品凑满优惠门槛">去凑单 ›</button>
     </view>
     <button class="coupon-entry__button" bindtap="openCouponCenter">去领券 ›</button>
   </view>

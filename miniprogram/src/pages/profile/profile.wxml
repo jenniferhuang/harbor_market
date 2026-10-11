@@ -1,0 +1,35 @@
+<view class="page-shell profile-page" aria-role="main">
+  <text class="page-heading">个人资料</text>
+  <text class="profile-intro">头像和昵称，让熟悉的小店认出你。</text>
+
+  <view wx:if="{{authStatus == 'authenticated'}}" class="surface profile-fields">
+    <view class="profile-row"><text>ID</text><text class="profile-row__value">{{customerId}}</text></view>
+    <button class="profile-row" bindtap="openProfileDialog" disabled="{{authBusy}}" aria-label="修改头像">
+      <text>头像</text>
+      <view class="profile-row__trailing">
+        <image wx:if="{{avatarPath}}" class="profile-avatar" src="{{avatarPath}}" mode="aspectFill" binderror="onAvatarError" />
+        <view wx:else class="profile-avatar profile-avatar--empty" aria-hidden="true"><view class="profile-avatar__head" /><view class="profile-avatar__body" /></view>
+        <text class="profile-row__arrow" aria-hidden="true">›</text>
+      </view>
+    </button>
+    <button class="profile-row" bindtap="openProfileDialog" disabled="{{authBusy}}" aria-label="修改昵称">
+      <text>昵称</text><view class="profile-row__trailing"><text class="profile-row__value profile-row__nickname">{{nickname}}</text><text class="profile-row__arrow" aria-hidden="true">›</text></view>
+    </button>
+  </view>
+  <view wx:else class="surface profile-guest">
+    <text class="profile-guest__title">{{authStatus == 'restoring' ? '正在恢复登录…' : '登录后查看个人资料'}}</text>
+    <text class="profile-guest__hint">通过微信登录，可设置头像和昵称。你也可以继续以游客身份选购。</text>
+    <button class="primary-button" disabled="{{authBusy}}" loading="{{authStatus == 'restoring'}}" bindtap="openProfileDialog">{{authStatus == 'restoring' ? '请稍候…' : '微信登录'}}</button>
+    <button class="profile-guest__browse" bindtap="continueShopping">继续选购</button>
+  </view>
+
+  <view wx:if="{{errorMessage}}" class="profile-message" aria-role="alert">{{errorMessage}}</view>
+  <view wx:if="{{showConnectionSettings}}" class="surface profile-fields">
+    <button class="profile-row" bindtap="openConnectionSettings"><text>开发连接设置</text><text class="profile-row__arrow" aria-hidden="true">›</text></button>
+  </view>
+  <text class="profile-note">购物车保存在当前设备，退出登录不会清空商品。</text>
+</view>
+<view wx:if="{{authStatus == 'authenticated'}}" class="profile-footer">
+  <button class="secondary-button profile-logout" disabled="{{authBusy}}" bindtap="confirmLogout">退出登录</button>
+</view>
+<login-dialog visible="{{loginVisible}}" mode="{{loginMode}}" bind:close="closeLogin" bind:success="onLoginSuccess" />

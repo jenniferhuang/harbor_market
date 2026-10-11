@@ -121,6 +121,20 @@ beforeEach(() => {
 })
 
 describe('product administration view', () => {
+  it('distinguishes missing inventory from zero stock without promising unlimited stock', async () => {
+    catalogMocks.listProducts.mockResolvedValue({
+      items: [
+        { ...product, inventory_count: null, stock_status: 'out_of_stock' },
+        { ...product, id: 10, product_code: 'ZERO-STOCK', name: '零库存商品', inventory_count: 0, stock_status: 'out_of_stock' },
+      ],
+      total: 2, page: 1, page_size: 20,
+    })
+    await renderView()
+    expect(await screen.findByRole('cell', { name: '售罄 · 未录入' })).toBeVisible()
+    expect(screen.getByRole('cell', { name: '售罄 · 0' })).toBeVisible()
+    expect(screen.queryByText(/不限/)).not.toBeInTheDocument()
+  })
+
   it('lists products and converts yuan fields to integer cents when creating', async () => {
     await renderView()
     const interaction = userEvent.setup()

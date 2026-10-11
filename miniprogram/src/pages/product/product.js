@@ -13,6 +13,7 @@ const { formatCents } = require('../../utils/money')
 const { getApiBaseUrl } = require('../../api/client')
 const { getAuthState, subscribe } = require('../../state/auth-store')
 const { getFavorite, setFavorite } = require('../../api/customer-shop')
+const { recordVisit } = require('../../state/browsing-history')
 
 function messageFor(error, fallback) {
   return error && typeof error.message === 'string' && /[\u3400-\u9fff]/.test(error.message) ? error.message : fallback
@@ -211,6 +212,7 @@ Page({
     try {
       const product = await fetchProduct(this.data.productCode)
       if (!this._alive || sequence !== this._loadSequence || origin !== getApiBaseUrl()) return
+      recordVisit(product)
       const selections = initialSelections(product)
       const images = normalizedImages(product, 'gallery')
       const unit = product.unit || '件'

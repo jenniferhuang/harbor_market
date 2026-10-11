@@ -1,0 +1,16 @@
+<view class="page-shell history-page" aria-role="main">
+  <view class="history-heading"><text class="page-heading">我的足迹</text><button wx:if="{{total}}" class="text-button" bindtap="clearVisits">清除</button></view>
+  <text class="page-intro">记住最近心动的好物。仅保存在本机，最多 50 件。</text>
+  <view wx:if="{{!total}}" class="surface status-panel"><text class="status-panel__title">还没有浏览足迹</text><text class="status-panel__message">打开商品详情后，就可以在这里再次找到它。</text><button class="primary-button status-panel__action" bindtap="continueShopping">去逛逛</button></view>
+  <view wx:if="{{errorMessage}}" class="history-error" aria-role="alert"><text>{{errorMessage}}</text><button class="secondary-button" bindtap="loadItems">重新加载</button></view>
+  <view class="surface history-list" wx:if="{{items.length}}">
+    <button wx:for="{{items}}" wx:key="productCode" class="history-item" data-code="{{item.productCode}}" bindtap="openProduct">
+      <image wx:if="{{item.coverUrl}}" class="history-item__image" src="{{item.coverUrl}}" mode="aspectFill" />
+      <view wx:else class="history-item__image history-item__placeholder" aria-hidden="true">好物</view>
+      <view class="history-item__copy"><text class="history-item__name">{{item.name}}</text><text class="history-item__date">{{item.dateLabel}} 浏览</text><text class="price">{{item.displayPrice}}</text></view><text class="history-item__arrow" aria-hidden="true">›</text>
+    </button>
+  </view>
+  <text wx:if="{{loading}}" class="history-note" aria-role="status">正在找回你的足迹…</text>
+  <text wx:if="{{unavailableCount}}" class="history-note">{{unavailableCount}} 件商品已下架或暂不可见。</text>
+  <button wx:if="{{hasMore}}" class="secondary-button history-more" bindtap="loadMore">查看更多足迹</button>
+</view>

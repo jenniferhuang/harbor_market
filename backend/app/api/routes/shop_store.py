@@ -45,6 +45,7 @@ from app.schemas.shop_store import (
     StoreRead,
     StoreResponse,
 )
+from app.services.shop_commerce import customer_counts
 from app.services.shop_store import (
     MAX_IMAGE_BYTES,
     MAX_VIDEO_BYTES,
@@ -192,7 +193,10 @@ def mini_store_me(
 ) -> MiniStoreMeResponse:
     _no_store(response)
     return MiniStoreMeResponse(
-        data=MiniStoreMeData(can_manage_store=can_manage_store(session, identity[0].id))
+        data=MiniStoreMeData(
+            can_manage_store=can_manage_store(session, identity[0].id),
+            **customer_counts(session, identity[0].id),
+        )
     )
 
 

@@ -16,3 +16,6 @@
 .total-note { display: block; margin-top: 18rpx; line-height: 1.6; }
 .price-change { display: block; padding: 22rpx; margin-top: 24rpx; background: #fff3dc; color: #886323; border-radius: 18rpx; font-size: 25rpx; }
 .next-stage { margin-top: 24rpx; }
+
+.checkout-page button.coupon-link { width: auto; }
+.checkout-page button.coupon-choice { width: 100%; }

@@ -129,6 +129,69 @@ describe('cart page selection and shared stock', () => {
 })
 
 describe('cart owned coupon previews', () => {
+  it('shows the current saving and next better threshold, then updates both when quantity or selection changes', async () => {
+    const { page, store, api } = setup({ loggedIn: true, coupons: [coupon(),
+      coupon(2, { min_spend_cents: 900, discount_cents: 300 })] })
+    store.addItem(store.loadCart(), product(), { addon: [] }, 2)
+    page.onShow()
+    await flush()
+    expect(page.data).toMatchObject({
+      couponHint: '已优惠¥2.00', nextCouponHint: '再买3.00元，可换用减3.00元券',
+      couponTopUpVisible: true, displayTotal: '¥4.00',
+    })
+    page.continueShopping()
+    expect(api.switchTab).toHaveBeenLastCalledWith({ url: '/pages/catalog/catalog' })
+    const key = page.data.items[0].key
+    page.changeQuantity({ currentTarget: { dataset: { key } }, detail: { value: 3 } })
+    expect(page.data).toMatchObject({
+      couponHint: '已优惠¥3.00', nextCouponHint: '', couponTopUpVisible: false,
+      chosenCouponId: 2, displayTotal: '¥6.00',
+    })
+    page.changeQuantity({ currentTarget: { dataset: { key } }, detail: { value: 1 } })
+    expect(page.data).toMatchObject({
+      couponHint: '差3.00元可减2.00元', nextCouponHint: '', couponTopUpVisible: true,
+      chosenCouponId: null, displayTotal: '¥3.00',
+    })
+    page.toggleAll()
+    expect(page.data).toMatchObject({ nextCouponHint: '', couponTopUpVisible: false, displayTotal: '¥0.00' })
+  })
+
+  it('suggests the nearest useful claimed coupon, preserves no-coupon choice, and clears hints on load failure', async () => {
+    const { page, store, customerApi } = setup({ loggedIn: true, coupons: [coupon(),
+      coupon(2, { min_spend_cents: 650, discount_cents: 100 }),
+      coupon(3, { min_spend_cents: 900, discount_cents: 250 }),
+      coupon(4, { min_spend_cents: 900, discount_cents: 300 }),
+      coupon(5, { min_spend_cents: 1200, discount_cents: 500 }),
+      coupon(6, { min_spend_cents: 601, discount_cents: 500, expires_at: '2020-01-01T00:00:00Z' }),
+      coupon(7, { min_spend_cents: 601, discount_cents: 500, claimed_at: null })] })
+    store.addItem(store.loadCart(), product(), { addon: [] }, 2)
+    page.onShow()
+    await flush()
+    expect(page.data.nextCouponHint).toBe('再买3.00元，可换用减3.00元券')
+    page.chooseNoCoupon()
+    expect(page.data).toMatchObject({ couponHint: '本次不使用优惠券', nextCouponHint: '', couponTopUpVisible: false })
+    page.chooseCoupon({ currentTarget: { dataset: { id: 1 } } })
+    expect(page.data.nextCouponHint).toBe('再买3.00元，可换用减3.00元券')
+    customerApi.fetchMyCoupons.mockRejectedValueOnce(new Error('优惠券暂时无法加载。'))
+    await page.loadCoupons()
+    expect(page.data).toMatchObject({
+      couponHint: '优惠券加载失败，暂不计入优惠', nextCouponHint: '', couponTopUpVisible: false,
+    })
+  })
+
+  it('does not ask shoppers to spend more for a coupon an existing coupon would already match', async () => {
+    const { page, store } = setup({ loggedIn: true, coupons: [
+      coupon(1, { min_spend_cents: 300, discount_cents: 1200 }),
+      coupon(2, { min_spend_cents: 900, discount_cents: 800 }),
+    ] })
+    store.addItem(store.loadCart(), product(), { addon: [] }, 2)
+    page.onShow()
+    await flush()
+    expect(page.data).toMatchObject({
+      couponHint: '已优惠¥6.00', nextCouponHint: '', couponTopUpVisible: false, displayTotal: '¥0.00',
+    })
+  })
+
   it('updates shortfalls and discounts at the selected threshold, and sends only an eligible coupon to checkout', async () => {
     const { page, store, api } = setup({ loggedIn: true, coupons: [coupon()] })
     store.addItem(store.loadCart(), product(), { addon: [] }, 1)

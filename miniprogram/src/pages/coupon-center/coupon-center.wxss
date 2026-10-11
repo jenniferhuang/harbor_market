@@ -25,3 +25,8 @@
 .empty-mark { display: block; width: 86rpx; height: 86rpx; margin: 0 auto 22rpx; border-radius: 20rpx; background: #e9f2eb; color: #7e9f86; font-size: 38rpx; line-height: 86rpx; }
 .load-more { width: 100%; margin-top: 10rpx; }
 .list-end { display: block; margin: 30rpx 0; text-align: center; color: #839087; font-size: 23rpx; }
+
+.coupon-center button.wallet-link,
+.coupon-center button.retry-link { width: auto; }
+.coupon-center button.claim-button { width: 142rpx; }
+.coupon-center button.load-more { width: 100%; }

@@ -3,6 +3,7 @@
 const { quoteCart } = require('../../api/cart')
 const { getApiBaseUrl } = require('../../api/client')
 const { getAuthState, subscribe } = require('../../state/auth-store')
+const { readSession } = require('../../state/customer-session')
 const { loadCart, selectedItems } = require('../../state/cart-store')
 const { formatCents } = require('../../utils/money')
 
@@ -17,6 +18,12 @@ function requestLines(items) {
     selections: item.selections,
     quantity: item.quantity,
   }))
+}
+
+function identityKey(state) {
+  const session = readSession()
+  return state.status === 'authenticated' && session && state.customer && session.customer.id === state.customer.id
+    ? `${session.apiOrigin}|${state.customer.id}|${session.accessToken}` : ''
 }
 
 function couponView(row) {
@@ -42,17 +49,19 @@ Page({
     this._origin = getApiBaseUrl()
     const couponId = Number(options.coupon_id)
     this._requestedCouponId = Number.isSafeInteger(couponId) && couponId > 0 ? couponId : null
-    this._unsubscribe = subscribe((state) => {
-      const id = state.status === 'authenticated' ? state.customer.id : null
-      if (id === this._customerId) return
-      this._customerId = id
-      ++this._sequence
-      this.setData({ loggedIn: Boolean(id), quote: null, items: [], coupons: [], loading: false,
-        couponId: null, displaySubtotal: '¥0.00', displayDiscount: '¥0.00', displayTotal: '¥0.00',
-        errorMessage: '', priceChanged: false })
-      if (!id) this._requestedCouponId = null
-      if (id && this._visible) this.refreshQuote()
-    })
+    this._unsubscribe = subscribe((state) => this.applyAuthState(state))
+  },
+  applyAuthState(state) {
+    if (!this._alive) return
+    const identity = identityKey(state)
+    if (identity === this._identityKey) return
+    this._identityKey = identity
+    ++this._sequence
+    this.setData({ loggedIn: Boolean(identity), quote: null, items: [], coupons: [], loading: false,
+      couponId: null, displaySubtotal: '¥0.00', displayDiscount: '¥0.00', displayTotal: '¥0.00',
+      errorMessage: '', priceChanged: false })
+    if (!identity) this._requestedCouponId = null
+    if (identity && this._visible) this.refreshQuote()
   },
   onShow() {
     this._visible = true
@@ -80,13 +89,13 @@ Page({
     const cartFingerprint = fingerprint(items)
     const sequence = ++this._sequence
     const origin = getApiBaseUrl()
-    const customerId = this._customerId
+    const identity = this._identityKey
     this.setData({ loading: Boolean(items.length), empty: items.length === 0, quote: null, items: [], coupons: [],
       errorMessage: '', priceChanged: false, couponId: this._requestedCouponId, displaySubtotal: '¥0.00', displayDiscount: '¥0.00', displayTotal: '¥0.00' })
     if (!items.length) return
     try {
       const quote = await quoteCart({ items: requestLines(items), coupon_id: this._requestedCouponId })
-      if (!this._alive || !this._visible || sequence !== this._sequence || origin !== getApiBaseUrl() || customerId !== this._customerId) return
+      if (!this._alive || !this._visible || sequence !== this._sequence || origin !== getApiBaseUrl() || identity !== this._identityKey) return
       if (fingerprint(selectedItems(loadCart())) !== cartFingerprint) {
         this.setData({ loading: false, errorMessage: '购物车已改变，请重新核对金额。' })
         return
@@ -98,7 +107,7 @@ Page({
         displayDiscount: formatCents(quote.discount_cents), displayTotal: formatCents(quote.total_cents),
         priceChanged: quote.items.some((row, index) => row.unit_price_cents !== items[index].unitPriceCents) })
     } catch (error) {
-      if (this._alive && this._visible && sequence === this._sequence && origin === getApiBaseUrl() && customerId === this._customerId) {
+      if (this._alive && this._visible && sequence === this._sequence && origin === getApiBaseUrl() && identity === this._identityKey) {
         this.setData({ loading: false, errorMessage: error.message || '金额暂时无法确认，请重试。' })
       }
     }
@@ -113,7 +122,11 @@ Page({
   withoutCoupon() { this._requestedCouponId = null; this.refreshQuote() },
   login() { this.setData({ loginVisible: true }) },
   closeLogin() { this.setData({ loginVisible: false }) },
-  loginSucceeded() { this.setData({ loginVisible: false }); this.refreshQuote() },
+  loginSucceeded() {
+    this.setData({ loginVisible: false })
+    // Authentication subscribers already start the first quote for this session.
+    if (!this.data.loading && !this.data.quote && !this.data.errorMessage) this.refreshQuote()
+  },
   openCouponCenter() { wx.navigateTo({ url: '/pages/coupon-center/coupon-center?from=cart' }) },
   backToCart() { wx.switchTab({ url: '/pages/cart/cart' }) },
 })

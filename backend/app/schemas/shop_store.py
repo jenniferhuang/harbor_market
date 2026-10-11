@@ -73,6 +73,9 @@ class AdminStoreResponse(BaseModel):
 
 class MiniStoreMeData(BaseModel):
     can_manage_store: bool
+    favorites_count: int = Field(ge=0)
+    available_coupon_count: int = Field(ge=0)
+    order_count: int = Field(ge=0)
 
 
 class MiniStoreMeResponse(BaseModel):

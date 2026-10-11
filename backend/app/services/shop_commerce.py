@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from pydantic import ValidationError
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.sql.elements import ColumnElement
@@ -42,6 +42,41 @@ def active_coupon_condition(now: datetime) -> ColumnElement[bool]:
         ShopCoupon.starts_at <= now,
         ShopCoupon.expires_at > now,
     )
+
+
+def customer_counts(session: Session, customer_id: int) -> dict[str, int]:
+    """Read account totals without fetching paginated lists or changing customer data."""
+    favorites = (
+        select(func.count())
+        .select_from(MiniFavorite)
+        .join(Product, Product.id == MiniFavorite.product_id)
+        .join(Category, Category.id == Product.category_id)
+        .where(
+            MiniFavorite.customer_id == customer_id,
+            Product.status == "published",
+            Category.is_active.is_(True),
+        )
+    )
+    coupons = (
+        select(func.count())
+        .select_from(MiniCouponClaim)
+        .join(ShopCoupon, ShopCoupon.id == MiniCouponClaim.coupon_id)
+        .where(
+            MiniCouponClaim.customer_id == customer_id,
+            active_coupon_condition(datetime.now(UTC)),
+        )
+    )
+    orders = (
+        select(func.count())
+        .select_from(ShopOrder)
+        .where(ShopOrder.customer_id == customer_id)
+    )
+    statement = select(
+        favorites.scalar_subquery().label("favorites_count"),
+        coupons.scalar_subquery().label("available_coupon_count"),
+        orders.scalar_subquery().label("order_count"),
+    )
+    return dict(session.execute(statement).mappings().one())
 
 
 def serialize_coupon(coupon: ShopCoupon, claimed_at: datetime | None = None) -> CouponRead:

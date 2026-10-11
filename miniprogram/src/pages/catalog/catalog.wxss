@@ -42,3 +42,10 @@ page { height: 100%; overflow: hidden; background: #ffffff; }
 .catalog-footer { padding: 30rpx 16rpx; color: #8a9d93; font-size: 23rpx; text-align: center; }
 .catalog-more { width: auto; min-height: 68rpx; margin: 20rpx 22rpx; padding: 17rpx 20rpx; border: 1rpx solid #d2e2d9; border-radius: 12rpx; background: #f5f9f6; color: #0f6b5f; font-size: 24rpx; line-height: 1.4; }
 .catalog-bottom-space { height: 112rpx; }
+
+.catalog-page button.catalog-search,
+.catalog-page button.category-toggle,
+.catalog-page button.category-item { width: 100%; }
+.catalog-page button.product-row__choose { width: 54rpx; }
+.catalog-page button.catalog-text-button,
+.catalog-page button.catalog-more { width: auto; }

@@ -1,0 +1,22 @@
+.profile-page { padding-top: 38rpx; padding-bottom: calc(170rpx + env(safe-area-inset-bottom)); }
+.profile-intro { display: block; margin-top: 16rpx; color: #70827a; font-size: 25rpx; line-height: 1.6; }
+.profile-fields { overflow: hidden; margin-top: 28rpx; padding: 0 28rpx; }
+.profile-row { display: flex; width: 100%; min-height: 108rpx; box-sizing: border-box; align-items: center; justify-content: space-between; gap: 28rpx; margin: 0; border-radius: 0; padding: 24rpx 0; background: #fff; color: #244c3e; font-size: 29rpx; text-align: left; line-height: 1.5; }
+.profile-row + .profile-row { border-top: 1rpx solid #e6eee9; }
+.profile-row[disabled] { background: #fff; color: #71877b; }
+.profile-row__value { color: #7b8d83; }
+.profile-row__trailing { display: flex; align-items: center; justify-content: flex-end; gap: 18rpx; min-width: 0; flex: 1; }
+.profile-row__nickname { overflow-wrap: break-word; text-align: right; }
+.profile-row__arrow { flex-shrink: 0; color: #a1b4a8; font-size: 42rpx; }
+.profile-avatar { display: block; width: 92rpx; height: 92rpx; flex-shrink: 0; border-radius: 50%; background: #e9f2ec; }
+.profile-avatar--empty { position: relative; overflow: hidden; }
+.profile-avatar__head { position: absolute; top: 18rpx; left: 30rpx; width: 32rpx; height: 34rpx; border-radius: 50%; background: #a0bbaa; }
+.profile-avatar__body { position: absolute; top: 57rpx; left: 16rpx; width: 60rpx; height: 44rpx; border-radius: 36rpx 36rpx 0 0; background: #a0bbaa; }
+.profile-guest { margin-top: 32rpx; padding: 36rpx 28rpx 20rpx; text-align: center; }
+.profile-guest__title { display: block; color: #315849; font-size: 31rpx; font-weight: 650; }
+.profile-guest__hint { display: block; margin: 18rpx 0 28rpx; color: #788b7f; font-size: 25rpx; line-height: 1.7; }
+.profile-guest__browse { margin: 12rpx 0 0; padding: 18rpx; background: transparent; color: #4d7965; font-size: 26rpx; }
+.profile-note { display: block; margin: 26rpx 6rpx 0; color: #83958a; font-size: 23rpx; line-height: 1.7; }
+.profile-message { margin-top: 24rpx; border-radius: 16rpx; padding: 22rpx; background: #fff2ef; color: #9d4336; font-size: 25rpx; line-height: 1.6; }
+.profile-footer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 70; padding: 20rpx 28rpx calc(20rpx + env(safe-area-inset-bottom)); background: #fff; border-top: 1rpx solid #e3ece6; }
+.profile-logout { width: 100%; margin: 0; }

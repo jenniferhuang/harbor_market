@@ -88,3 +88,5 @@
 .product-card__stock--empty {
   color: #a33a30;
 }
+
+button.product-card.product-card { width: 100%; }

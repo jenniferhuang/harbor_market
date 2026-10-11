@@ -116,13 +116,23 @@ def test_admin_assignment_and_owner_patch_use_real_mini_identity(
     assert other != owner
     assert admin_client.get(f"{MINI}/me").status_code == 401
     assert admin_client.get(f"{MINI}/me", headers=bearer).json() == {
-        "data": {"can_manage_store": False}
+        "data": {
+            "can_manage_store": False,
+            "favorites_count": 0,
+            "available_coupon_count": 0,
+            "order_count": 0,
+        }
     }
     assigned = admin_client.patch(f"{ADMIN}/store", json={"owner_customer_id": owner})
     assert assigned.status_code == 200
     assert assigned.json()["data"]["owner_customer_id"] == owner
     assert admin_client.get(f"{MINI}/me", headers=bearer).json() == {
-        "data": {"can_manage_store": True}
+        "data": {
+            "can_manage_store": True,
+            "favorites_count": 0,
+            "available_coupon_count": 0,
+            "order_count": 0,
+        }
     }
     for path in ("/store",):
         assert admin_client.get(f"{MINI}{path}", headers=other_bearer).status_code == 403

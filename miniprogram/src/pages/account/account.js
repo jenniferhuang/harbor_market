@@ -6,6 +6,11 @@ const {
 const { fetchCustomerShopAccess } = require('../../api/customer-shop')
 const { getApiBaseUrl } = require('../../api/client')
 const { readSession } = require('../../state/customer-session')
+const { loadHistory } = require('../../state/browsing-history')
+
+function countLabel(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? String(value) : '—'
+}
 
 function messageFor(error, fallback) {
   return error && typeof error.message === 'string' && error.message ? error.message : fallback
@@ -21,6 +26,12 @@ Page({
     loginVisible: false,
     loginMode: 'login',
     canManageStore: false,
+    favoritesCount: '—',
+    availableCouponCount: '—',
+    orderCount: '—',
+    historyCount: 0,
+    summaryLoading: false,
+    summaryError: '',
   },
 
   onLoad() {
@@ -32,53 +43,72 @@ Page({
 
   onShow() {
     this._visible = true
+    this.setData({ historyCount: loadHistory().length })
     this.applyAuthState(getAuthState())
     this.loadShopAccess()
   },
 
-  onHide() { this._visible = false },
+  onHide() {
+    this._visible = false
+    this._logoutPending = null
+    ++this._accessSequence
+    this._accessLoading = false
+    this.setData({ summaryLoading: false })
+  },
 
   onUnload() {
     this._alive = false
+    this._visible = false
+    this._logoutPending = null
     this._accessSequence += 1
     if (this._unsubscribe) this._unsubscribe()
   },
 
   applyAuthState(state) {
     if (!this._alive) return
+    const session = readSession()
+    const token = state.status === 'authenticated' && session && session.customer.id === state.customer?.id ? session.accessToken : ''
     this.setData({
-      authStatus: state.status,
+      authStatus: token ? 'authenticated' : state.status === 'restoring' ? 'restoring' : 'guest',
       authBusy: state.busy || state.status === 'restoring' || Boolean(this._logoutInFlight),
-      nickname: state.customer ? state.customer.nickname || '微信用户' : '',
-      avatarPath: state.avatarPath || '',
+      nickname: token ? state.customer.nickname || '微信用户' : '',
+      avatarPath: token ? state.avatarPath || '' : '',
       errorMessage: state.errorMessage || '',
     })
-    if (state.status !== 'authenticated') {
+    if (token !== this._accessToken || getApiBaseUrl() !== this._accessOrigin) {
+      this._logoutPending = null
       this._accessSequence += 1
-      this._accessToken = ''
+      this._accessToken = token
+      this._accessOrigin = getApiBaseUrl()
       this._accessLoading = false
-      this.setData({ canManageStore: false })
-    } else if (this._visible && readSession()?.accessToken !== this._accessToken) {
-      this.loadShopAccess()
+      this.setData({ canManageStore: false, favoritesCount: '—', availableCouponCount: '—', orderCount: '—', summaryLoading: false, summaryError: '' })
+      if (this._visible && token) this.loadShopAccess()
     }
   },
 
   async loadShopAccess() {
     const session = readSession()
-    if (!this._alive || !session || getAuthState().status !== 'authenticated') return
+    if (!this._alive || !this._visible || !session || getAuthState().status !== 'authenticated') return
     if (this._accessLoading && this._accessToken === session.accessToken) return
     const sequence = ++this._accessSequence
     const origin = getApiBaseUrl()
     this._accessToken = session.accessToken
+    this._accessOrigin = origin
     this._accessLoading = true
-    this.setData({ canManageStore: false })
+    this.setData({ canManageStore: false, summaryLoading: true, summaryError: '' })
+    const current = () => this._alive && this._visible && sequence === this._accessSequence &&
+      origin === getApiBaseUrl() && readSession()?.accessToken === session.accessToken && getAuthState().status === 'authenticated'
     try {
       const access = await fetchCustomerShopAccess()
-      if (this._alive && sequence === this._accessSequence && origin === getApiBaseUrl()) this.setData({ canManageStore: access.can_manage_store === true })
+      if (current()) this.setData({ canManageStore: access.can_manage_store === true,
+        favoritesCount: countLabel(access.favorites_count), availableCouponCount: countLabel(access.available_coupon_count), orderCount: countLabel(access.order_count) })
     } catch {
-      // Optional merchant access must not interrupt customer profile or guest browsing.
+      if (current()) this.setData({ favoritesCount: '—', availableCouponCount: '—', orderCount: '—', summaryError: '账户数据暂时无法加载，点击重试。' })
     } finally {
-      if (sequence === this._accessSequence) this._accessLoading = false
+      if (sequence === this._accessSequence) {
+        this._accessLoading = false
+        if (this._alive) this.setData({ summaryLoading: false })
+      }
     }
   },
 
@@ -90,7 +120,7 @@ Page({
     const state = getAuthState()
     this.applyAuthState(state)
     if (this.data.authBusy) return
-    this.setData({ loginVisible: true, loginMode: state.status === 'authenticated' ? 'profile' : 'login' })
+    this.setData({ loginVisible: true, loginMode: this.data.authStatus === 'authenticated' ? 'profile' : 'login' })
   },
 
   editProfile() {
@@ -118,8 +148,11 @@ Page({
   },
 
   confirmLogout() {
-    if (this.data.authBusy || this._logoutPending) return
-    this._logoutPending = true
+    if (!this._alive || !this._visible || this.data.authBusy || this._logoutPending) return
+    const session = readSession()
+    if (!session) return
+    const pending = {}
+    this._logoutPending = pending
     wx.showModal({
       title: '退出登录',
       content: '确定退出当前账户吗？购物车中的商品会继续保留在本机。',
@@ -127,7 +160,8 @@ Page({
       cancelText: '取消',
       confirmColor: '#0f6b5f',
       success: async (result) => {
-        if (!result.confirm) return
+        if (!result.confirm || !this._alive || !this._visible || this._logoutPending !== pending || readSession()?.accessToken !== session.accessToken || session.apiOrigin !== getApiBaseUrl()) return
+        this._logoutPending = null
         this._logoutInFlight = true
         if (this._alive) this.setData({ authBusy: true })
         try {
@@ -145,7 +179,7 @@ Page({
         }
       },
       complete: () => {
-        this._logoutPending = false
+        if (this._logoutPending === pending) this._logoutPending = null
       },
     })
   },
@@ -155,7 +189,7 @@ Page({
   },
 
   openSettings() {
-    wx.navigateTo({ url: '/pages/settings/settings' })
+    wx.navigateTo({ url: '/pages/profile/profile' })
   },
 
   continueShopping() {
@@ -165,7 +199,11 @@ Page({
   openCoupons() { this.openCustomerPage('coupons') },
   openFavorites() { this.openCustomerPage('favorites') },
   openOrders() { this.openCustomerPage('orders') },
+  openHistory() { wx.navigateTo({ url: '/pages/history/history' }) },
+  openCouponCenter() { wx.navigateTo({ url: '/pages/coupon-center/coupon-center' }) },
   openCustomerPage(page) {
+    this.applyAuthState(getAuthState())
+    if (this.data.authBusy) return
     if (this.data.authStatus !== 'authenticated') { this.openLogin(); return }
     wx.navigateTo({ url: `/pages/${page}/${page}` })
   },

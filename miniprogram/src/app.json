@@ -8,6 +8,8 @@
     "pages/checkout/checkout",
     "pages/coupon-center/coupon-center",
     "pages/account/account",
+    "pages/profile/profile",
+    "pages/history/history",
     "pages/coupons/coupons",
     "pages/favorites/favorites",
     "pages/orders/orders",

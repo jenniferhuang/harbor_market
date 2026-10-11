@@ -61,6 +61,7 @@ Page({
     loggedIn: false, couponLoading: false, couponErrorMessage: '', couponRows: [],
     couponLimited: false,
     chosenCouponId: null, couponChoiceLabel: '暂未选择优惠券', couponHint: '领券后，购物更优惠',
+    nextCouponHint: '', couponTopUpVisible: false,
     couponPickerVisible: false, noCouponSelected: false,
     recommendations: [], recommendationsLoading: false, recommendationsErrorMessage: '',
   },
@@ -166,18 +167,30 @@ Page({
   refreshCouponPreview() {
     const subtotal = this.data.selectedSummary.totalCents
     const evaluations = evaluateCoupons(this._coupons || [], subtotal)
-    const chosen = this._couponChoice === undefined ? bestCoupon(evaluations)
+    const bestAvailable = bestCoupon(evaluations)
+    const chosen = this._couponChoice === undefined ? bestAvailable
       : evaluations.find((item) => item.coupon_id === this._couponChoice && item.eligible) || null
     const discount = chosen ? chosen.appliedDiscountCents : 0
-    const nextOffer = evaluations.filter((item) => item.reason === 'below_minimum')
-      .sort((left, right) => left.shortfallCents - right.shortfallCents || right.discount_cents - left.discount_cents)[0]
+    // Compare savings at the future threshold: an existing coupon may already cover that amount.
+    const availableDiscount = evaluations.filter((item) => item.eligible)
+      .reduce((largest, item) => Math.max(largest, item.discount_cents), 0)
+    const nextOffer = evaluations.filter((item) => item.reason === 'below_minimum' &&
+      Math.min(item.discount_cents, item.min_spend_cents) > Math.min(availableDiscount, item.min_spend_cents))
+      .sort((left, right) => left.shortfallCents - right.shortfallCents ||
+        right.discount_cents - left.discount_cents || left.coupon_id - right.coupon_id)[0]
     let hint = !this.data.loggedIn ? '登录后可使用已领取的优惠券' : '去领券中心看看，有好券等你领取'
     if (this.data.couponLoading) hint = '正在加载已领取的优惠券'
     else if (this.data.couponErrorMessage) hint = '优惠券加载失败，暂不计入优惠'
     else if (chosen) hint = `已优惠${formatCents(discount)}`
     else if (this._couponChoice === null) hint = '本次不使用优惠券'
-    else if (nextOffer) hint = couponHint(nextOffer)
     else if (evaluations.some((item) => item.eligible)) hint = '选择一张优惠券享受优惠'
+    else if (nextOffer) hint = couponHint(nextOffer)
+    const canTopUp = Boolean(nextOffer && subtotal > 0 && this.data.loggedIn &&
+      !this.data.couponLoading && !this.data.couponErrorMessage && this._couponChoice !== null &&
+      (chosen || !bestAvailable))
+    const nextHint = canTopUp && chosen
+      ? `再买${formatCents(nextOffer.shortfallCents).slice(1)}元，可换用减${formatCents(Math.min(nextOffer.discount_cents, nextOffer.min_spend_cents)).slice(1)}元券`
+      : ''
     this.setData({
       couponRows: evaluations.map((item) => ({ coupon_id: item.coupon_id,
         title: typeof item.title === 'string' ? item.title.slice(0, 200) : '优惠券',
@@ -185,6 +198,7 @@ Page({
       chosenCouponId: chosen?.coupon_id || null, noCouponSelected: this._couponChoice === null,
       couponChoiceLabel: chosen ? chosen.title || '已选优惠券' : this._couponChoice === null ? '不用券' : '选择优惠券',
       couponHint: hint, discountCents: discount, displayDiscount: formatCents(discount),
+      nextCouponHint: nextHint, couponTopUpVisible: canTopUp,
       displaySubtotal: formatCents(subtotal), displayTotal: formatCents(Math.max(0, subtotal - discount)),
     })
   },
