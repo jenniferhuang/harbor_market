@@ -1,0 +1,53 @@
+<view class="page-shell coupon-center">
+  <view class="center-heading">
+    <view>
+      <text class="page-heading">领券中心</text>
+      <text class="page-intro">先领优惠，再挑好物</text>
+    </view>
+    <button class="wallet-link" bindtap="openWallet">我的优惠券 ›</button>
+  </view>
+
+  <view wx:if="{{cartContext}}" class="cart-context surface">
+    <text>已选商品金额</text>
+    <text class="cart-context__amount">{{subtotalLabel}}</text>
+  </view>
+  <view wx:if="{{authStatus !== 'authenticated'}}" class="guest-note">浏览优惠券无需登录，领取时通过微信登录即可。</view>
+
+  <view wx:if="{{claimsLoading}}" class="loading-note">正在核对已领取记录…</view>
+  <view wx:if="{{claimsErrorMessage}}" class="inline-error">
+    <text>{{claimsErrorMessage}}</text>
+    <button class="retry-link" bindtap="retryClaims" disabled="{{claimsLoading}}">重试</button>
+  </view>
+
+  <view class="coupon-list">
+    <view wx:for="{{coupons}}" wx:key="id" class="coupon-ticket {{item.claimed ? 'coupon-ticket--claimed' : ''}}">
+      <view class="coupon-ticket__main">
+        <view class="coupon-value"><text class="coupon-value__currency">¥</text><text>{{item.discountLabel}}</text></view>
+        <view class="coupon-info">
+          <text class="coupon-info__title">{{item.title}}</text>
+          <text class="coupon-info__threshold">{{item.thresholdLabel}}</text>
+        </view>
+        <button class="claim-button" data-id="{{item.id}}" bindtap="claim" loading="{{item.claiming}}" disabled="{{item.claimed || item.claiming || item.unavailable || authBusy || claimsLoading}}">{{item.claimed ? '已领取' : item.unavailable ? '暂不可领' : item.claiming ? '领取中' : claimsLoading ? '核对中' : claimsErrorMessage ? '确认并领取' : '立即领取'}}</button>
+      </view>
+      <view class="coupon-ticket__footer">
+        <text class="coupon-expiry">{{item.expiryLabel}}</text>
+        <text wx:if="{{item.contextText}}" class="coupon-context">{{item.contextText}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{errorMessage}}" class="status-panel surface">
+    <text class="status-panel__message status-panel__message--error">{{errorMessage}}</text>
+    <button class="secondary-button status-panel__action" bindtap="retry" disabled="{{loading}}">重新加载</button>
+  </view>
+  <view wx:elif="{{loading}}" class="loading-note">正在加载优惠券…</view>
+  <view wx:elif="{{hasLoaded && !coupons.length}}" class="status-panel surface">
+    <text class="empty-mark">券</text>
+    <text class="status-panel__title">暂无可领取优惠券</text>
+    <text class="status-panel__message">下次来看看，店内优惠会在这里更新。</text>
+  </view>
+  <button wx:elif="{{hasMore}}" class="secondary-button load-more" bindtap="loadMore">查看更多优惠券</button>
+  <text wx:elif="{{coupons.length}}" class="list-end">已展示全部可领取优惠券</text>
+</view>
+
+<login-dialog visible="{{loginVisible}}" mode="login" bindclose="closeLogin" bindsuccess="onLoginSuccess" />

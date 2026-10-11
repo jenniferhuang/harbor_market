@@ -1,5 +1,5 @@
 const { absoluteMediaUrl } = require('../../api/client')
-const { loadCart, updateQuantity, clearCart, cartSummary, maxQuantityForItem } = require('../../state/cart-store')
+const { loadCart, updateQuantity, clearCart, cartSummary, selectedSummary, setItemSelected, maxQuantityForItem } = require('../../state/cart-store')
 const { formatCents } = require('../../utils/money')
 
 function messageFor(error, fallback) {
@@ -23,6 +23,7 @@ Component({
   data: {
     items: [],
     totalQuantity: 0,
+    selectedQuantity: 0,
     displayTotal: formatCents(0),
     expanded: false,
     errorMessage: '',
@@ -49,10 +50,12 @@ Component({
     },
     applyCart(cart) {
       const summary = cartSummary(cart)
+      const selected = selectedSummary(cart)
       this.setData({
         items: cart.items.map((item) => itemView(item, cart)),
         totalQuantity: summary.totalQuantity,
-        displayTotal: formatCents(summary.totalCents),
+        selectedQuantity: selected.totalQuantity,
+        displayTotal: formatCents(selected.totalCents),
         errorMessage: '',
       })
     },
@@ -69,6 +72,18 @@ Component({
         this.triggerEvent('change', { totalQuantity: this.data.totalQuantity })
       } catch (error) {
         this.showError('数量更新失败', error)
+      }
+    },
+    changeSelection(event) {
+      try {
+        const cart = loadCart()
+        const key = event.currentTarget.dataset.key
+        const item = cart.items.find((candidate) => candidate.key === key)
+        if (!item) return
+        this.applyCart(setItemSelected(cart, key, !item.selected))
+        this.triggerEvent('change', { totalQuantity: this.data.totalQuantity })
+      } catch (error) {
+        this.showError('选择更新失败', error)
       }
     },
     clearAll() {
@@ -96,13 +111,8 @@ Component({
     },
     checkout() {
       this.refresh()
-      if (!this.data.totalQuantity) return
-      wx.showModal({
-        title: '订单结算尚未开放',
-        content: '购物车已保存在本机。结算开放后即可在这里提交订单。',
-        showCancel: false,
-        confirmText: '知道了',
-      })
+      if (!this.data.selectedQuantity || this.data.errorMessage) return
+      wx.navigateTo({ url: '/pages/checkout/checkout' })
     },
   },
 })

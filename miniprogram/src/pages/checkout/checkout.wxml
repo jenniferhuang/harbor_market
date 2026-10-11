@@ -1,0 +1,51 @@
+<view class="page-shell checkout-page">
+  <text class="page-heading">确认选购</text>
+  <text class="page-intro">核对已勾选的商品和优惠</text>
+  <view wx:if="{{empty}}" class="surface status-panel">
+    <text class="status-panel__title">还没有勾选商品</text>
+    <button class="primary-button status-panel__action" bindtap="backToCart">返回购物车</button>
+  </view>
+  <view wx:elif="{{!loggedIn}}" class="surface status-panel">
+    <text class="status-panel__title">登录后核对金额</text>
+    <text class="status-panel__message">登录后可使用已领取的优惠券，购物车会保留。</text>
+    <button class="primary-button status-panel__action" bindtap="login">微信登录</button>
+  </view>
+  <block wx:else>
+    <view wx:if="{{loading}}" class="surface status-panel" aria-role="status">正在核对当前价格、库存和优惠…</view>
+    <view wx:if="{{errorMessage}}" class="surface status-panel" aria-role="alert">
+      <text class="status-panel__message status-panel__message--error">{{errorMessage}}</text>
+      <button class="primary-button status-panel__action" bindtap="refreshQuote">重新核对</button>
+      <button wx:if="{{couponId != null}}" class="secondary-button" bindtap="withoutCoupon">不使用优惠券，重新核对</button>
+      <button class="secondary-button" bindtap="backToCart">返回修改</button>
+    </view>
+    <block wx:if="{{quote}}">
+      <text wx:if="{{priceChanged}}" class="price-change">部分商品价格已更新，以下金额以当前价格为准。</text>
+      <view class="surface selected-lines">
+        <view wx:for="{{items}}" wx:key="key" class="confirm-line">
+          <view class="confirm-line__copy"><text class="confirm-line__name">{{item.name}}</text><text class="muted">{{item.selectionSummary || item.sku_name}}</text><text class="muted">{{item.unitPrice}} × {{item.quantity}}</text></view>
+          <text class="price">{{item.lineTotal}}</text>
+        </view>
+      </view>
+      <view class="surface coupon-options">
+        <view class="section-heading"><text class="section-title">优惠券</text><button class="coupon-link" bindtap="openCouponCenter">去领券 ›</button></view>
+        <button class="coupon-choice {{couponId == null ? 'coupon-choice--selected' : ''}}" data-id="0" bindtap="chooseCoupon">{{couponId == null ? '✓ ' : ''}}不使用优惠券</button>
+        <button wx:for="{{coupons}}" wx:key="coupon_id" class="coupon-choice {{couponId == item.coupon_id ? 'coupon-choice--selected' : ''}}" data-id="{{item.coupon_id}}" disabled="{{!item.eligible}}" bindtap="chooseCoupon">
+          <text>{{couponId == item.coupon_id ? '✓ ' : ''}}{{item.title}}</text><text class="coupon-condition">满 {{item.thresholdLabel}} 减 {{item.discountLabel}} · {{item.statusLabel}}</text>
+        </button>
+        <text wx:if="{{!coupons.length}}" class="muted">暂时没有已领取的优惠券</text>
+      </view>
+      <view class="surface confirmed-total">
+        <view><text>商品金额</text><text>{{displaySubtotal}}</text></view>
+        <view><text>优惠</text><text class="discount">−{{displayDiscount}}</text></view>
+        <view class="payable"><text>商品优惠后合计</text><text class="price">{{displayTotal}}</text></view>
+        <text class="muted total-note">不含运费。此页核对金额，不锁定库存或使用优惠券。</text>
+      </view>
+      <view class="surface status-panel next-stage">
+        <text class="status-panel__title">下单暂未开放</text>
+        <text class="status-panel__message">当前可确认选购金额，订单提交与支付将另行开放。</text>
+        <button class="secondary-button status-panel__action" bindtap="backToCart">返回购物车</button>
+      </view>
+    </block>
+  </block>
+</view>
+<login-dialog visible="{{loginVisible}}" bind:close="closeLogin" bind:success="loginSucceeded" />

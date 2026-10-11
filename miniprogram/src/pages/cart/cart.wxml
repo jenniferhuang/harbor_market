@@ -2,14 +2,18 @@
   <view class="cart-heading">
     <view>
       <text class="page-heading">购物车</text>
-      <text class="page-intro">商品保存在当前设备，尚未创建订单。</text>
+      <text class="page-intro">挑好每一份心意，再一起带回家。</text>
     </view>
-    <button
-      wx:if="{{items.length}}"
-      class="cart-heading__clear"
-      bindtap="clearAll"
-      aria-label="清空购物车"
-    >清空</button>
+    <button wx:if="{{items.length}}" class="text-button" bindtap="toggleEditing">{{editing ? '完成' : '编辑'}}</button>
+  </view>
+
+  <view class="coupon-entry" aria-label="领券中心">
+    <view class="coupon-entry__icon" aria-hidden="true">券</view>
+    <view class="coupon-entry__body">
+      <text class="coupon-entry__title">领好券，享优惠</text>
+      <text class="coupon-entry__hint">{{couponHint}}</text>
+    </view>
+    <button class="coupon-entry__button" bindtap="openCouponCenter">去领券 ›</button>
   </view>
 
   <view wx:if="{{errorMessage}}" class="surface status-panel" aria-role="alert">
@@ -17,80 +21,85 @@
     <text class="status-panel__message status-panel__message--error">{{errorMessage}}</text>
     <button class="secondary-button status-panel__action" bindtap="refreshCart">重新读取</button>
   </view>
-
-  <view wx:elif="{{!items.length}}" class="surface status-panel">
-    <text class="status-panel__title">购物车还是空的</text>
-    <text class="status-panel__message">去商品目录挑选一些商品吧。</text>
-    <button class="primary-button status-panel__action" bindtap="continueShopping">去选购</button>
+  <view wx:elif="{{!items.length}}" class="surface empty-state">
+    <view class="empty-state__illustration" aria-hidden="true"><view class="empty-basket" /><view class="empty-wheel empty-wheel--left" /><view class="empty-wheel empty-wheel--right" /></view>
+    <text class="empty-state__title">购物车还是空的哦</text>
+    <text class="empty-state__intro">逛一逛，把喜欢的好物带回家。</text>
+    <button class="primary-button empty-state__action" bindtap="continueShopping">去选购</button>
   </view>
-
   <block wx:else>
+    <view class="cart-toolbar">
+      <button class="selection-button" bindtap="toggleAll" aria-label="{{allSelected ? '取消全选' : '全选商品'}}">
+        <view class="selection-mark {{allSelected ? 'selection-mark--selected' : ''}}" aria-hidden="true">{{allSelected ? '✓' : ''}}</view><text>全选</text>
+      </button>
+      <text class="cart-toolbar__count">已选 {{selectedSummary.totalQuantity}} 件</text>
+      <button class="text-button" bindtap="invertSelected">反选</button>
+      <button wx:if="{{editing}}" class="text-button text-button--danger" bindtap="clearAll">清空</button>
+    </view>
     <view class="cart-lines">
-      <view wx:for="{{items}}" wx:key="key" class="surface cart-line">
-        <image
-          wx:if="{{item.coverUrl}}"
-          class="cart-line__image"
-          src="{{item.coverUrl}}"
-          mode="aspectFill"
-          aria-label="{{item.productName}} 商品图片"
-        />
+      <view wx:for="{{items}}" wx:key="key" class="surface cart-line {{item.selected ? '' : 'cart-line--unselected'}}">
+        <button class="line-selection" data-key="{{item.key}}" bindtap="changeSelection" aria-label="{{item.selected ? '取消选择' : '选择'}} {{item.productName}}">
+          <view class="selection-mark {{item.selected ? 'selection-mark--selected' : ''}}" aria-hidden="true">{{item.selected ? '✓' : ''}}</view>
+        </button>
+        <image wx:if="{{item.coverUrl}}" class="cart-line__image" src="{{item.coverUrl}}" mode="aspectFill" aria-label="{{item.productName}} 商品图片" />
         <view wx:else class="cart-line__image cart-line__placeholder" aria-hidden="true">港湾</view>
-
         <view class="cart-line__content">
           <view class="cart-line__top">
-            <view class="cart-line__identity">
-              <text class="cart-line__name">{{item.productName}}</text>
-              <text wx:if="{{item.skuName}}" class="cart-line__sku">{{item.skuName}}</text>
-            </view>
-            <button
-              class="cart-line__remove"
-              data-key="{{item.key}}"
-              bindtap="removeLine"
-              aria-label="移除 {{item.productName}}"
-            >移除</button>
+            <text class="cart-line__name">{{item.productName}}</text>
+            <button wx:if="{{editing}}" class="cart-line__remove" data-key="{{item.key}}" bindtap="removeLine" aria-label="移除 {{item.productName}}">移除</button>
           </view>
-
-          <text wx:if="{{item.selectionSummary}}" class="cart-line__selection">{{item.selectionSummary}}</text>
+          <text class="cart-line__selection">{{item.selectionSummary || item.skuName}}</text>
           <text wx:if="{{item.stockLabel}}" class="cart-line__stock">{{item.stockLabel}}</text>
-
           <view class="cart-line__footer">
-            <view>
-              <text class="price cart-line__price">{{item.displayLineTotal}}</text>
-              <text class="cart-line__unit">{{item.displayUnitPrice}} / 件</text>
-            </view>
-            <quantity-stepper
-              data-key="{{item.key}}"
-              value="{{item.quantity}}"
-              min="{{1}}"
-              max="{{item.maxQuantity}}"
-              bind:change="changeQuantity"
-            />
+            <text class="price cart-line__price">{{item.displayUnitPrice}}</text>
+            <quantity-stepper data-key="{{item.key}}" value="{{item.quantity}}" min="{{1}}" max="{{item.maxQuantity}}" bind:change="changeQuantity" />
           </view>
+          <text class="cart-line__subtotal">小计 {{item.displayLineTotal}}</text>
         </view>
       </view>
     </view>
-
-    <view class="surface cart-summary" aria-label="购物车汇总">
-      <text id="cart-summary-title" class="section-title">购物车汇总</text>
-      <view class="cart-summary__row">
-        <text>商品种类</text>
-        <text>{{summary.lineCount}}</text>
-      </view>
-      <view class="cart-summary__row">
-        <text>商品数量</text>
-        <text>{{summary.totalQuantity}}</text>
-      </view>
-      <view class="cart-summary__row cart-summary__row--total">
-        <text>合计</text>
-        <text class="price">{{displayTotal}}</text>
-      </view>
-      <text class="cart-summary__notice">
-        这里是目录价格估算，不含运费，也不是服务端订单应付金额。
-      </text>
-      <button class="checkout-unavailable" bindtap="explainCheckout">
-        订单结算（尚未开放）
-      </button>
-      <button class="secondary-button continue-button" bindtap="continueShopping">继续选购</button>
+    <view class="surface cart-summary" aria-label="已选商品金额">
+      <view class="cart-summary__row"><text>已选商品小计</text><text>{{displaySubtotal}}</text></view>
+      <button class="cart-summary__row cart-summary__coupon" bindtap="openCouponPicker"><text>优惠券</text><text>{{couponChoiceLabel}} ›</text></button>
+      <view class="cart-summary__row"><text>优惠预估</text><text class="cart-summary__discount">-{{displayDiscount}}</text></view>
+      <text wx:if="{{couponErrorMessage}}" class="coupon-error">{{couponErrorMessage}}</text>
+      <button wx:if="{{couponErrorMessage}}" class="text-button retry-coupons" bindtap="loadCoupons">重新加载优惠券</button>
+      <text wx:if="{{couponLimited}}" class="cart-summary__notice">优惠预览仅覆盖部分已领取的券，更多券可在领券中心查看。</text>
+      <text class="cart-summary__notice">最终金额与库存将在结算时确认。</text>
     </view>
   </block>
+
+  <view class="recommendations">
+    <view class="recommendations__heading"><view class="recommendations__rule" /><text>♡ 您或许会喜欢</text><view class="recommendations__rule" /></view>
+    <view wx:if="{{recommendations.length}}" class="recommendations__grid">
+      <product-card wx:for="{{recommendations}}" wx:key="productCode" item="{{item}}" bind:select="openProduct" />
+    </view>
+    <text wx:elif="{{recommendationsLoading}}" class="recommendations__status">正在找寻好物…</text>
+    <view wx:elif="{{recommendationsErrorMessage}}" class="recommendations__status">
+      <text>{{recommendationsErrorMessage}}</text><button class="text-button" bindtap="loadRecommendations">重试</button>
+    </view>
+    <text wx:else class="recommendations__status">更多好物，敬请期待。</text>
+  </view>
+</view>
+
+<view wx:if="{{items.length && !errorMessage}}" class="cart-checkout-bar">
+  <button class="selection-button" bindtap="toggleAll" aria-label="{{allSelected ? '取消全选' : '全选商品'}}"><view class="selection-mark {{allSelected ? 'selection-mark--selected' : ''}}" aria-hidden="true">{{allSelected ? '✓' : ''}}</view><text>全选</text></button>
+  <view class="cart-checkout-bar__total"><text class="cart-checkout-bar__label">总计 <text class="price">{{displayTotal}}</text></text><text wx:if="{{discountCents}}" class="cart-checkout-bar__discount">已优惠 {{displayDiscount}}</text></view>
+  <button class="cart-checkout-bar__button" disabled="{{!selectedSummary.totalQuantity}}" bindtap="checkout">去结算{{selectedSummary.totalQuantity ? '（' + selectedSummary.totalQuantity + '）' : ''}}</button>
+</view>
+
+<view wx:if="{{couponPickerVisible}}" class="coupon-mask" bindtap="closeCouponPicker" catchtouchmove="stopTouch" />
+<view wx:if="{{couponPickerVisible}}" class="coupon-picker">
+  <view class="coupon-picker__heading"><text>选择优惠券</text><button class="text-button" bindtap="closeCouponPicker" aria-label="关闭优惠券选择">完成</button></view>
+  <text class="coupon-picker__intro">优惠以勾选商品的小计计算，每次使用一张。</text>
+  <text wx:if="{{couponLimited}}" class="coupon-picker__intro">仅显示部分已领取的券，更多券请到领券中心查看。</text>
+  <scroll-view scroll-y class="coupon-picker__rows">
+    <button class="coupon-choice {{noCouponSelected ? 'coupon-choice--selected' : ''}}" bindtap="chooseNoCoupon"><text>不用券</text><text>{{noCouponSelected ? '✓' : ''}}</text></button>
+    <text wx:if="{{couponLoading}}" class="coupon-picker__empty">正在加载优惠券…</text>
+    <text wx:elif="{{!couponRows.length}}" class="coupon-picker__empty">{{couponErrorMessage || '还没有已领取的优惠券，去领券中心看看吧。'}}</text>
+    <button wx:for="{{couponRows}}" wx:key="coupon_id" class="coupon-choice {{item.selected ? 'coupon-choice--selected' : ''}}" disabled="{{!item.eligible}}" data-id="{{item.coupon_id}}" bindtap="chooseCoupon">
+      <view><text class="coupon-choice__title">{{item.title || '优惠券'}}</text><text class="coupon-choice__hint">{{item.hint}}</text></view><text>{{item.selected ? '✓' : ''}}</text>
+    </button>
+  </scroll-view>
+  <button class="secondary-button coupon-picker__center" bindtap="openCouponCenter">去领券中心</button>
 </view>

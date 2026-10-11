@@ -1,0 +1,4 @@
+{
+  "navigationBarTitleText": "确认选购",
+  "usingComponents": { "login-dialog": "/components/login-dialog/login-dialog" }
+}

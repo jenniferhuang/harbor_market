@@ -76,6 +76,7 @@ function sanitizeStoredItem(item) {
     !Number.isInteger(item.quantity) ||
     item.quantity < 1 ||
     item.quantity > MAX_ITEM_QUANTITY ||
+    (item.selected !== undefined && typeof item.selected !== 'boolean') ||
     !(
       item.stockQuantity === null ||
       (Number.isSafeInteger(item.stockQuantity) && item.stockQuantity >= 0)
@@ -99,6 +100,7 @@ function sanitizeStoredItem(item) {
     unitPriceCents: item.unitPriceCents,
     quantity: item.quantity,
     stockQuantity: item.stockQuantity,
+    selected: item.selected !== false,
   }
 }
 
@@ -234,6 +236,7 @@ function addItem(cart, product, selections, quantity = 1) {
     unitPriceCents: calculateUnitPrice(product, copiedSelections, sku),
     quantity: nextQuantity,
     stockQuantity,
+    selected: existingIndex >= 0 ? normalized.items[existingIndex].selected : true,
   }
   const safeItem = sanitizeStoredItem(item)
   if (!safeItem) throw new Error('商品数据格式不正确，无法加入购物车')
@@ -282,6 +285,32 @@ function clearCart() {
   return persist(emptyCart())
 }
 
+function setItemSelected(cart, key, selected) {
+  if (typeof selected !== 'boolean') throw new TypeError('selected must be a boolean')
+  const normalized = normalizeCart(cart)
+  return persist({ ...normalized, items: normalized.items.map((item) =>
+    item.key === key ? { ...item, selected } : item) })
+}
+
+function setAllSelected(cart, selected) {
+  if (typeof selected !== 'boolean') throw new TypeError('selected must be a boolean')
+  const normalized = normalizeCart(cart)
+  return persist({ ...normalized, items: normalized.items.map((item) => ({ ...item, selected })) })
+}
+
+function invertSelection(cart) {
+  const normalized = normalizeCart(cart)
+  return persist({ ...normalized, items: normalized.items.map((item) => ({ ...item, selected: !item.selected })) })
+}
+
+function selectedItems(cart) {
+  return normalizeCart(cart).items.filter((item) => item.selected)
+}
+
+function selectedSummary(cart) {
+  return cartSummary({ version: CART_VERSION, items: selectedItems(cart) })
+}
+
 function cartSummary(cart) {
   const normalized = normalizeCart(cart)
   let totalQuantity = 0
@@ -307,6 +336,11 @@ module.exports = {
   clearCart,
   loadCart,
   maxQuantityForItem,
+  invertSelection,
   removeItem,
+  selectedItems,
+  selectedSummary,
+  setAllSelected,
+  setItemSelected,
   updateQuantity,
 }

@@ -1,6 +1,7 @@
 {
   "navigationBarTitleText": "购物车",
   "usingComponents": {
+    "product-card": "/components/product-card/product-card",
     "quantity-stepper": "/components/quantity-stepper/quantity-stepper"
   }
 }

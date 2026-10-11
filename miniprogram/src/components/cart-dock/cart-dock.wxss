@@ -32,3 +32,6 @@ button::after { border: 0; }
 .line-price { font-size: 28rpx; color: #af4934; font-weight: 600; }
 .empty-cart { padding: 64rpx 28rpx; color: #6a7a75; font-size: 26rpx; text-align: center; }
 .cart-error { display: block; padding: 16rpx 28rpx; color: #a3342a; font-size: 24rpx; }
+.line-selection { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 40rpx; }
+.selection-mark { box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 36rpx; height: 36rpx; border: 2rpx solid #bdcfc5; border-radius: 50%; background: #fff; color: #fff; font-size: 23rpx; }
+.selection-mark--selected { background: #176b55; border-color: #176b55; }

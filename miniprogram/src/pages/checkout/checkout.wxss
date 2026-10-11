@@ -1,0 +1,18 @@
+.checkout-page { padding-bottom: 48rpx; }
+.selected-lines, .coupon-options, .confirmed-total { padding: 28rpx; margin-top: 24rpx; }
+.confirm-line { display: flex; align-items: center; justify-content: space-between; gap: 24rpx; padding: 22rpx 0; border-bottom: 1rpx solid #edf2ef; }
+.confirm-line:last-child { border-bottom: 0; }
+.confirm-line__copy { display: flex; flex-direction: column; gap: 10rpx; min-width: 0; }
+.confirm-line__name { font-size: 30rpx; font-weight: 650; color: #17332f; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; }
+.coupon-link { margin: 0; padding: 12rpx 0 12rpx 20rpx; background: transparent; color: #0f6b5f; font-size: 26rpx; line-height: 1.4; }
+.coupon-link::after, .coupon-choice::after { border: 0; }
+.coupon-choice { margin-top: 18rpx; padding: 22rpx; text-align: left; background: #f4f7f5; color: #29473f; font-size: 28rpx; line-height: 1.5; border: 2rpx solid transparent; }
+.coupon-choice--selected { background: #eaf5ef; border-color: #0f6b5f; color: #0f6b5f; }
+.coupon-condition { display: block; margin-top: 8rpx; font-size: 24rpx; font-weight: 400; }
+.confirmed-total > view { display: flex; justify-content: space-between; padding: 14rpx 0; color: #405b51; }
+.confirmed-total .payable { margin-top: 14rpx; border-top: 1rpx solid #e7eeea; font-weight: 650; font-size: 30rpx; }
+.discount { color: #0f6b5f; }
+.total-note { display: block; margin-top: 18rpx; line-height: 1.6; }
+.price-change { display: block; padding: 22rpx; margin-top: 24rpx; background: #fff3dc; color: #886323; border-radius: 18rpx; font-size: 25rpx; }
+.next-stage { margin-top: 24rpx; }

@@ -31,8 +31,10 @@ See [商品选购 implementation](../docs/CATALOG_SHOPPING_IMPLEMENTATION.md) fo
 draft product data, backend fields, and current verification results.
 The interface text in both the Mini Program and browser application is Chinese.
 
-The cart subtotal is informational. Only the future backend order service may confirm current price,
-stock, and payable amount.
+The cart now supports persisted item selection, select all/invert selection, claimed-coupon estimates, and a coupon center. “去结算” opens a confirmation page that checks current catalog prices, stock, and coupon eligibility through the backend. See [cart implementation](../docs/CART_IMPLEMENTATION.md). Order submission and payment are still unavailable.
+
+The cart subtotal is an estimate. The confirmation page rechecks current prices, stock, and coupon
+eligibility through the backend; order submission must validate them again before creating an order.
 
 ## Prerequisites
 

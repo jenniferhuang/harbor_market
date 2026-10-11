@@ -1,0 +1,27 @@
+.center-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
+.center-heading .page-heading, .center-heading .page-intro { display: block; }
+.wallet-link { flex-shrink: 0; margin: 0; padding: 12rpx 0 12rpx 12rpx; background: transparent; color: #176c5a; font-size: 25rpx; line-height: 1.5; }
+.cart-context { display: flex; align-items: center; justify-content: space-between; margin-top: 28rpx; padding: 24rpx; color: #536b62; }
+.cart-context__amount { color: #154b3b; font-size: 32rpx; font-weight: 650; }
+.guest-note { margin-top: 24rpx; color: #6b7d75; font-size: 24rpx; line-height: 1.6; }
+.coupon-list { margin-top: 28rpx; }
+.coupon-ticket { position: relative; overflow: hidden; margin-bottom: 24rpx; border: 1rpx solid #d9e7dd; border-radius: 24rpx; background: #fff; }
+.coupon-ticket__main { display: flex; align-items: center; gap: 18rpx; min-height: 152rpx; padding: 28rpx 22rpx; background: #e5f1e7; }
+.coupon-value { display: flex; align-items: baseline; gap: 2rpx; flex-shrink: 0; color: #175b43; font-size: 50rpx; font-weight: 750; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.coupon-value__currency { font-size: 25rpx; font-weight: 500; }
+.coupon-info { flex: 1; min-width: 0; }
+.coupon-info__title { display: block; color: #1c4836; font-size: 27rpx; font-weight: 650; line-height: 1.45; overflow-wrap: anywhere; }
+.coupon-info__threshold { display: block; margin-top: 9rpx; color: #526e5c; font-size: 24rpx; line-height: 1.45; }
+.claim-button { flex-shrink: 0; width: 142rpx; margin: 0; padding: 16rpx 8rpx; border-radius: 999rpx; background: #fff; color: #186848; font-size: 24rpx; font-weight: 600; line-height: 1.4; }
+.claim-button[disabled] { background: #edf4ee; color: #738b79; }
+.coupon-ticket__footer { display: flex; flex-direction: column; gap: 10rpx; padding: 24rpx; border-top: 1rpx dashed #c8dacd; font-size: 23rpx; line-height: 1.5; }
+.coupon-expiry { color: #758278; }
+.coupon-context { color: #24684c; font-weight: 500; }
+.coupon-ticket--claimed .coupon-ticket__main { background: #edf4ed; }
+.loading-note { display: block; margin: 24rpx 0; text-align: center; color: #6b7d75; font-size: 25rpx; }
+.inline-error { display: flex; align-items: center; gap: 16rpx; margin-top: 22rpx; padding: 18rpx 22rpx; border-radius: 16rpx; background: #fff3ee; color: #963f2d; font-size: 24rpx; line-height: 1.5; }
+.inline-error text { flex: 1; }
+.retry-link { flex-shrink: 0; margin: 0; padding: 4rpx 8rpx; background: transparent; color: #963f2d; font-size: 24rpx; line-height: 1.5; }
+.empty-mark { display: block; width: 86rpx; height: 86rpx; margin: 0 auto 22rpx; border-radius: 20rpx; background: #e9f2eb; color: #7e9f86; font-size: 38rpx; line-height: 86rpx; }
+.load-more { width: 100%; margin-top: 10rpx; }
+.list-end { display: block; margin: 30rpx 0; text-align: center; color: #839087; font-size: 23rpx; }

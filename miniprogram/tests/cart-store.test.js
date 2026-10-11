@@ -244,4 +244,50 @@ describe('device-local cart store', () => {
     expect(store.maxQuantityForItem(mixed, mixed.items[0].key)).toBe(2)
     expect(() => store.updateQuantity(mixed, mixed.items[0].key, 3)).toThrow('购买数量超过当前库存')
   })
+
+  it('restores legacy lines as selected and preserves explicit unchecked lines across saves and merges', () => {
+    const { store, storage } = setup()
+    let cart = store.addItem(store.loadCart(), productFixture(), { size: ['large'], addon: [] })
+    expect(cart.items[0].selected).toBe(true)
+    const key = cart.items[0].key
+    delete storage.get('harbor_market_cart').items[0].selected
+    expect(store.loadCart().items[0].selected).toBe(true)
+    cart = store.setItemSelected(store.loadCart(), key, false)
+    expect(store.loadCart().items[0].selected).toBe(false)
+    cart = store.addItem(cart, productFixture(), { size: ['large'], addon: [] })
+    expect(cart.items[0]).toMatchObject({ selected: false, quantity: 2 })
+    cart = store.addItem(cart, productFixture(), { size: ['large'], addon: ['pearl'] })
+    expect(cart.items.map((item) => item.selected)).toEqual([false, true])
+    expect(store.cartSummary(cart)).toEqual({ lineCount: 2, totalQuantity: 3, totalCents: 1_250 })
+    expect(store.selectedSummary(cart)).toEqual({ lineCount: 1, totalQuantity: 1, totalCents: 450 })
+    expect(store.selectedItems(cart).map((item) => item.key)).toEqual([cart.items[1].key])
+  })
+
+  it('persists all-selection and inversion immutably while unchecked lines still consume shared stock', () => {
+    const { store, storage } = setup()
+    let cart = store.addItem(store.loadCart(), productFixture(4), { size: ['large'], addon: [] }, 2)
+    cart = store.addItem(cart, productFixture(4), { size: ['large'], addon: ['pearl'] }, 2)
+    const prior = cart
+    cart = store.setAllSelected(cart, false)
+    expect(prior.items.every((item) => item.selected)).toBe(true)
+    expect(store.selectedSummary(cart)).toEqual({ lineCount: 0, totalQuantity: 0, totalCents: 0 })
+    expect(store.cartQuantityForSku(cart, 'TEA', 'TEA-L')).toBe(4)
+    expect(store.maxQuantityForItem(cart, cart.items[0].key)).toBe(2)
+    expect(() => store.updateQuantity(cart, cart.items[0].key, 3)).toThrow('购买数量超过当前库存')
+    cart = store.invertSelection(cart)
+    cart = store.setItemSelected(cart, cart.items[0].key, false)
+    cart = store.invertSelection(cart)
+    expect(cart.items.map((item) => item.selected)).toEqual([true, false])
+    expect(storage.get('harbor_market_cart')).toEqual(cart)
+    expect(store.loadCart()).toEqual(cart)
+    expect(() => store.setItemSelected(cart, cart.items[0].key, 'false')).toThrow(TypeError)
+    expect(() => store.setAllSelected(cart, 0)).toThrow(TypeError)
+  })
+
+  it('discards malformed selection flags instead of treating truthy storage as approval', () => {
+    const { store, storage } = setup()
+    const cart = store.addItem(store.loadCart(), productFixture(), { size: ['large'], addon: [] })
+    storage.set('harbor_market_cart', { ...cart, items: [{ ...cart.items[0], selected: 'yes' }] })
+    expect(store.loadCart().items).toEqual([])
+  })
 })

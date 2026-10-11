@@ -36,6 +36,8 @@
         <text wx:if="{{favoriteError}}" class="selection-hint" aria-role="alert">{{favoriteError}}</text>
       </view>
 
+      <button class="product-coupon-entry" bindtap="openCouponCenter"><text>优惠券</text><text>领券中心 · 查看满减优惠 ›</text></button>
+
       <view class="surface choice-card">
         <button class="selection-entry" bindtap="openSpecSheet" aria-label="打开规格和数量选择">
           <text class="selection-entry__label">选择</text><view class="selection-entry__content"><text>{{selectionText || (selectedSku ? selectedSku.name : '请选择规格')}}</text><text class="selection-entry__quantity">数量 {{quantity}} {{displayUnit}}</text></view><text class="selection-entry__arrow" aria-hidden="true">›</text>

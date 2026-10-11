@@ -304,6 +304,10 @@ Page({
     this.setData({ quantity: Math.max(1, Math.min(this.data.maxQuantity, value)) })
   },
 
+  openCouponCenter() {
+    wx.navigateTo({ url: '/pages/coupon-center/coupon-center' })
+  },
+
   openCart() {
     wx.switchTab({ url: '/pages/cart/cart' })
   },

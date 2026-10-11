@@ -79,3 +79,6 @@
 .quantity-card { display: flex; justify-content: space-between; align-items: center; gap: 24rpx; margin-top: 26rpx; padding: 26rpx 0; border-top: 1rpx solid #e4ece8; }
 .spec-sheet__footer { padding: 22rpx 0 calc(22rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid #e4ece8; }
 .spec-sheet__footer button { margin: 0; width: 100%; border-radius: 999rpx; }
+
+.product-coupon-entry { display: flex; justify-content: space-between; gap: 20rpx; margin: 20rpx 0 0; padding: 24rpx 28rpx; background: #edf7f1; color: #0f6b5f; border-radius: 20rpx; font-size: 26rpx; line-height: 1.5; }
+.product-coupon-entry::after { border: 0; }

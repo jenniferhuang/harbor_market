@@ -19,6 +19,7 @@ function setup() {
     getStorageSync: vi.fn((key) => storage.get(key)),
     setStorageSync: vi.fn((key, value) => storage.set(key, value)),
     showModal: vi.fn(),
+    navigateTo: vi.fn(),
   }
   let definition
   global.Component = (value) => { definition = value }
@@ -124,16 +125,32 @@ describe('catalog and product shared cart dock', () => {
     expect(store.loadCart().items).toEqual([])
   })
 
-  it('shows truthful checkout status for the current cart and never creates orders', () => {
+  it('navigates to checkout only when the current stored cart has selected items', () => {
     const { component, store, api } = setup()
     component.checkout()
-    expect(api.showModal).not.toHaveBeenCalled()
+    expect(api.navigateTo).not.toHaveBeenCalled()
     store.addItem(store.loadCart(), fixture(), {}, 1)
     component.checkout()
-    expect(api.showModal).toHaveBeenCalledWith(expect.objectContaining({ title: '订单结算尚未开放' }))
-    store.clearCart()
-    api.showModal.mockClear()
+    expect(api.navigateTo).toHaveBeenCalledWith({ url: '/pages/checkout/checkout' })
+    store.setAllSelected(store.loadCart(), false)
+    api.navigateTo.mockClear()
     component.checkout()
+    expect(component.data).toMatchObject({ totalQuantity: 1, selectedQuantity: 0, displayTotal: '¥0.00' })
+    expect(api.navigateTo).not.toHaveBeenCalled()
+    store.clearCart()
+    component.checkout()
+    expect(api.navigateTo).not.toHaveBeenCalled()
     expect(api.showModal).not.toHaveBeenCalled()
+  })
+
+  it('keeps the badge quantity for every line while selection changes only the displayed total', () => {
+    const { component, store } = setup()
+    store.addItem(store.loadCart(), fixture(), {}, 2)
+    store.addItem(store.loadCart(), fixture('CAKE'), {}, 1)
+    component.refresh()
+    component.changeSelection({ currentTarget: { dataset: { key: component.data.items[0].key } } })
+    expect(component.data).toMatchObject({ totalQuantity: 3, selectedQuantity: 1, displayTotal: '¥3.50' })
+    expect(store.loadCart().items.map((item) => item.selected)).toEqual([false, true])
+    expect(component.triggerEvent).toHaveBeenCalledWith('change', { totalQuantity: 3 })
   })
 })

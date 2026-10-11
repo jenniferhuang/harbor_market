@@ -1,13 +1,14 @@
 <view wx:if="{{expanded}}" class="cart-mask" bindtap="close" catchtouchmove="stopTouch" />
 <view wx:if="{{expanded}}" class="cart-sheet" style="bottom: {{110 + insetBottom}}rpx;">
   <view class="sheet-header">
-    <text class="sheet-title">已选商品</text>
+    <text class="sheet-title">购物车 · 已选 {{selectedQuantity}} 件</text>
     <button wx:if="{{items.length}}" class="text-button" bindtap="clearAll">清空</button>
     <button class="close-button" bindtap="close" aria-label="关闭购物车">×</button>
   </view>
   <scroll-view scroll-y class="cart-lines" style="height: {{items.length > 3 ? 600 : (items.length ? items.length * 180 : 180)}}rpx;">
     <view wx:if="{{!items.length}}" class="empty-cart">购物车还是空的，选几件喜欢的商品吧</view>
     <view wx:for="{{items}}" wx:key="key" class="cart-line">
+      <button class="line-selection" data-key="{{item.key}}" bindtap="changeSelection" aria-label="{{item.selected ? '取消选择' : '选择'}} {{item.productName}}"><view class="selection-mark {{item.selected ? 'selection-mark--selected' : ''}}" aria-hidden="true">{{item.selected ? '✓' : ''}}</view></button>
       <image wx:if="{{item.coverUrl}}" class="line-image" src="{{item.coverUrl}}" mode="aspectFill" />
       <view wx:else class="line-image image-placeholder">好物</view>
       <view class="line-body">
@@ -31,10 +32,10 @@
       <text wx:if="{{totalQuantity}}" class="cart-badge">{{totalQuantity > 99 ? '99+' : totalQuantity}}</text>
     </view>
     <view class="total-body">
-      <text class="total-label">{{totalQuantity ? '合计' : '购物车'}}</text>
+      <text class="total-label">{{totalQuantity ? '已选合计' : '购物车'}}</text>
       <text class="total-price">{{displayTotal}}</text>
     </view>
     <text class="cart-chevron">{{expanded ? '⌄' : '⌃'}}</text>
   </button>
-  <button class="checkout" disabled="{{!totalQuantity}}" bindtap="checkout">去结算</button>
+  <button class="checkout" disabled="{{!selectedQuantity}}" bindtap="checkout">去结算</button>
 </view>
